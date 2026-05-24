@@ -5,9 +5,11 @@ import { WinstonModule } from 'nest-winston';
 import { winstonConfig } from './common/logger/winston.config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: WinstonModule.createLogger(winstonConfig),
   });
 
@@ -24,7 +26,8 @@ async function bootstrap() {
       },
     }),
   );
-
+  // ✨ Cấu hình mở cổng thư mục tĩnh công khai
+  app.useStaticAssets(join(__dirname, '..', 'public'));
   app.enableCors();
 
   const config = new DocumentBuilder()
