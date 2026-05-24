@@ -4,11 +4,28 @@ import { AppModule } from './app.module';
 import { WinstonModule } from 'nest-winston';
 import { winstonConfig } from './common/logger/winston.config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger(winstonConfig),
   });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      // ✨ Cấu hình nâng cấp: Gộp các lỗi validation thành một câu thông báo mượt mà
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) =>
+          Object.values(error.constraints || {}).join('. '),
+        );
+        return new BadRequestException(messages.join('. '));
+      },
+    }),
+  );
+
+  app.enableCors();
 
   const config = new DocumentBuilder()
     .setTitle('Gold Track VN API')
@@ -21,9 +38,9 @@ async function bootstrap() {
   // Cấu hình endpoint truy cập tài liệu API là /api
   SwaggerModule.setup('api', app, document);
   // ---------------------------------
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 8001);
   console.log(
-    `🚀 Application is running on: http://localhost:${process.env.PORT || 3000}/api`,
+    `🚀 Application is running on: http://localhost:${process.env.PORT || 8001}/api`,
   );
 }
 bootstrap();
