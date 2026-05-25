@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   ParseIntPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard'; // Đường dẫn có thể điều chỉnh tùy dự án của bạn
@@ -40,9 +41,15 @@ export class TransactionController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Xóa một khoảng chi tiêu theo ID' })
-  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    const userId = req.user.id;
-    return this.transactionService.remove(userId, id);
+async remove(@Param('id') id: string, @Req() req: any) {
+  // Lấy userId từ JWT ra (thường là string từ payload token)
+  const userId = req.user?.id;
+  
+  if (!userId) {
+    throw new NotFoundException('Không tìm thấy thông tin định danh người dùng!');
   }
+
+  // 🔥 Chuyển đổi cả Transaction ID (id) và User ID (userId) từ string sang number
+  return this.transactionService.remove(Number(id), Number(userId));
+}
 }

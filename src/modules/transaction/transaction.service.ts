@@ -6,12 +6,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class TransactionService {
   private readonly logger = new Logger(TransactionService.name);
-  constructor(private prisma: PrismaService) {}
-
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService, // Khai báo trong constructor
+  ) {}
   /**
    * ✨ Tạo một giao dịch chi tiêu mới
    */
@@ -48,19 +51,24 @@ export class TransactionService {
   /**
    * 🗑️ Xóa một giao dịch (Bổ sung để người dùng có thể sửa sai)
    */
-  async remove(userId: number, id: number) {
+  async remove(id: number, userId: number) {
+    // ✨ Đổi string thành number ở đây
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id: id, userId: userId },
+      where: { id, userId }, // Hết lỗi gạch đỏ vì cả 2 vế đã là number đồng bộ với Prisma
     });
 
     if (!transaction) {
       throw new NotFoundException(
-        'Không tìm thấy giao dịch này của bạn mất rồi! 🔍',
+        'Không tìm thấy giao dịch hoặc bạn không có quyền xóa!',
       );
     }
 
+    if (transaction.imageUrl && transaction.imageUrl.trim() !== '') {
+      await this.uploadService.deleteImage(transaction.imageUrl);
+    }
+
     return this.prisma.transaction.delete({
-      where: { id: id },
+      where: { id },
     });
   }
 }

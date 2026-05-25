@@ -47,4 +47,42 @@ export class UploadService {
       streamifier.createReadStream(file.buffer).pipe(uploadStream);
     });
   }
+
+  /**
+   * 🔥 Hàm trích xuất public_id từ URL Cloudinary và tiến hành xóa file
+   * @param imageUrl URL đầy đủ của ảnh (ví dụ: https://res.cloudinary.com/.../moment_u_payment/abc123xyz.jpg)
+   */
+  async deleteImage(imageUrl: string): Promise<any> {
+    if (!imageUrl) return;
+
+    try {
+      // 1. Tìm và cắt chuỗi để lấy phần public_id nằm sau thư mục root của dự án
+      // Ví dụ URL: https://res.cloudinary.com/demo/image/upload/v123456/moment_u_payment/sample1.jpg
+      // public_id cần lấy để xóa sẽ là: "moment_u_payment/sample1" (bỏ phần đuôi mở rộng .jpg/.png)
+      const folderName = 'moment_u_payment';
+      const startIndex = imageUrl.indexOf(folderName);
+
+      if (startIndex === -1) {
+        throw new BadRequestException(
+          'URL ảnh không thuộc hệ thống quản lý của ứng dụng!',
+        );
+      }
+
+      const endIndex = imageUrl.lastIndexOf('.');
+      const publicId = imageUrl.substring(startIndex, endIndex);
+
+      // 2. Gọi lệnh thông qua Cloudinary SDK để xóa tận gốc file trên đám mây
+      const result = await cloudinary.uploader.destroy(publicId);
+
+      if (result.result !== 'ok' && result.result !== 'not_found') {
+        throw new Error(`Cloudinary trả về trạng thái lỗi: ${result.result}`);
+      }
+
+      return result;
+    } catch (error) {
+      throw new BadRequestException(
+        `Không thể xóa ảnh trên Cloudinary: ${error}`,
+      );
+    }
+  }
 }
