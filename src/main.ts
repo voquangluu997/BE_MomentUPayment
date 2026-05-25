@@ -41,7 +41,7 @@ async function bootstrap() {
   // Cấu hình endpoint truy cập tài liệu API là /api
   SwaggerModule.setup('api', app, document);
   // ---------------------------------
-  await app.listen(process.env.PORT ?? 8001);
+  await app.listen(process.env.PORT ?? 8001, '0.0.0.0');
   console.log(
     `🚀 Application is running on: http://localhost:${process.env.PORT || 8001}/api`,
   );
