@@ -12,13 +12,17 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  password     String
-  name         String?
-  budgetLimit  Float         @default(0)
-  transactions Transaction[]
-  createdAt    DateTime      @default(now())
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String?   
+  name              String?
+  avatar            String?
+  isEmailVerified   Boolean   @default(false)
+  verificationToken String?   @unique         
+  googleId          String?   @unique         
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  transactions      Transaction[] 
 }
 
 model Transaction {
@@ -29,6 +33,6 @@ model Transaction {
   category  String   @default("General")
   emoji     String?  // Lưu cảm xúc 🥰, 💸
   spentAt   DateTime @default(now())
-  userId    Int
+  userId    String
   user      User     @relation(fields: [userId], references: [id])
 }

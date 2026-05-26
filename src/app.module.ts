@@ -1,14 +1,38 @@
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { TransactionModule } from './modules/transaction/transaction.module';
-import { UploadModule } from './modules/upload/upload.module';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bull';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { ExpressAdapter } from '@bull-board/express';
+import redisConfig from './config/redis.config';
+import { ReportsModule } from './reports/reports.module';
+import { AdminGuardMiddleware } from './common/middlewares/admin-guard.middleware';
 
 @Module({
-  imports: [PrismaModule, AuthModule, TransactionModule, UploadModule],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, load: [redisConfig] }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        redis: {
+          host: configService.get<string>('redis.host'),
+          port: configService.get<number>('redis.port'),
+          password: configService.get<string>('redis.password'),
+          tls: configService.get('redis.tls'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    // Cấu hình BullBoard toàn cục
+    BullBoardModule.forRoot({
+      route: '/admin/queues',
+      adapter: ExpressAdapter,
+    }),
+    ReportsModule,
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Sửa từ '/admin/queues*' thành '/admin/queues/(.*)'
+    consumer.apply(AdminGuardMiddleware).forRoutes('/admin/queues/*path');
+  }
+}

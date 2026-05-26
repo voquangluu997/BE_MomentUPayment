@@ -40,16 +40,29 @@ export class TransactionController {
     return this.transactionService.findAllByUser(userId);
   }
 
-  @Delete(':id')
-async remove(@Param('id') id: string, @Req() req: any) {
-  // Lấy userId từ JWT ra (thường là string từ payload token)
-  const userId = req.user?.id;
-  
-  if (!userId) {
-    throw new NotFoundException('Không tìm thấy thông tin định danh người dùng!');
+  @Get('analytics')
+  async getAnalytics(@Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
+    }
+
+    // Gọi xuống service lấy dữ liệu thống kê của User dạng số
+    return this.transactionService.getAnalytics(Number(userId));
   }
 
-  // 🔥 Chuyển đổi cả Transaction ID (id) và User ID (userId) từ string sang number
-  return this.transactionService.remove(Number(id), Number(userId));
-}
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Req() req: any) {
+    // Lấy userId từ JWT ra (thường là string từ payload token)
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new NotFoundException(
+        'Không tìm thấy thông tin định danh người dùng!',
+      );
+    }
+
+    // 🔥 Chuyển đổi cả Transaction ID (id) và User ID (userId) từ string sang number
+    return this.transactionService.remove(Number(id), Number(userId));
+  }
 }

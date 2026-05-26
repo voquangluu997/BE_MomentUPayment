@@ -71,4 +71,45 @@ export class TransactionService {
       where: { id },
     });
   }
+
+  /**
+   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại
+   */
+  async getAnalytics(userId: number) {
+    const now = new Date();
+    // 📅 Xác định ngày đầu tháng (Ví dụ: 2026-05-01T00:00:00.000Z)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // 📅 Xác định ngày cuối tháng (Ví dụ: 2026-05-31T23:59:59.999Z)
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    // 🧠 Sử dụng tính năng groupBy của Prisma để gom nhóm dữ liệu siêu tốc từ Postgres
+    const groups = await this.prisma.transaction.groupBy({
+      by: ['category', 'emoji'],
+      where: {
+        userId: userId,
+        spentAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _sum: {
+        amount: true, // Cộng tổng số tiền của từng nhóm
+      },
+    });
+
+    // Định dạng lại cấu trúc JSON trả về cho Mobile dễ xử lý
+    return groups.map((item) => ({
+      category: item.category,
+      emoji: item.emoji || '📝',
+      totalAmount: item._sum.amount || 0,
+    }));
+  }
 }
