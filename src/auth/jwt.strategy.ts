@@ -1,14 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PassportStrategy } from '@nestjs/passport';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-// Định nghĩa cấu trúc rõ ràng cho dữ liệu giải mã từ JWT Token (Payload)
-interface JwtPayload {
-  userId: number;
-  iat?: number;
-  exp?: number;
-}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,32 +9,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey:
-        process.env.JWT_SECRET ?? 'default_fallback_secret_key_pinky',
+      secretOrKey: process.env.JWT_SECRET || 'fallback_secret_key',
     });
   }
 
-  // Phương thức này tự động chạy sau khi token được xác thực tính hợp lệ thành công
-  async validate(payload: JwtPayload) {
-    // Tìm kiếm user nhưng KHÔNG lấy trường password để bảo mật dữ liệu
+  async validate(payload: { userId: string }) {
+    // Đảm bảo userId ở đây là string
+    // Tìm kiếm user dựa trên ID lấy từ mã JWT
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: {
+        id: payload.userId, // Hết lỗi vì id và payload.userId đã cùng là string
+      },
       select: {
         id: true,
         email: true,
         name: true,
-        budgetLimit: true,
-        createdAt: true,
+        isEmailVerified: true, // Lấy thêm trạng thái này để truyền vào req.user nếu cần
       },
     });
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Tài khoản không tồn tại hoặc đã bị khóa rùi! 😢',
-      );
+      throw new UnauthorizedException('User not found or invalid token.');
     }
 
-    // Giá trị trả về ở đây sẽ được NestJS tự động gán vào đối tượng Request (req.user)
-    return user;
+    return user; // Dữ liệu này sẽ được gán vào req.user ở Controller
   }
 }

@@ -13,21 +13,24 @@ export class TransactionService {
   private readonly logger = new Logger(TransactionService.name);
   constructor(
     private prisma: PrismaService,
-    private uploadService: UploadService, // Khai báo trong constructor
+    private uploadService: UploadService,
   ) {}
+
   /**
    * ✨ Tạo một giao dịch chi tiêu mới
    */
-  async create(userId: number, dto: CreateTransactionDto) {
+  // 💡 ĐỔI userId từ number THÀNH string
+  async create(userId: string, dto: CreateTransactionDto) {
     try {
+      // 💡 Nếu lỗi vẫn còn, hãy thử đổi thành: this.prisma.Transaction.create
       return await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
           note: dto.note,
           imageUrl: dto.imageUrl,
           category: dto.category,
-          emoji: dto.emoji ?? '🌸', // Nếu không gửi emoji, mặc định tặng bông hoa pastel
-          userId: userId,
+          emoji: dto.emoji ?? '🌸',
+          userId: userId, // Bây giờ là chuỗi String UUID đồng bộ với DB
         },
       });
     } catch (error) {
@@ -41,20 +44,21 @@ export class TransactionService {
   /**
    * ✨ Lấy toàn bộ lịch sử chi tiêu của riêng user đang đăng nhập
    */
-  async findAllByUser(userId: number) {
+  // 💡 ĐỔI userId từ number THÀNH string
+  async findAllByUser(userId: string) {
     return this.prisma.transaction.findMany({
       where: { userId: userId },
-      orderBy: { spentAt: 'desc' }, // Giao dịch mới nhất xếp lên đầu
+      orderBy: { spentAt: 'desc' },
     });
   }
 
   /**
-   * 🗑️ Xóa một giao dịch (Bổ sung để người dùng có thể sửa sai)
+   * 🗑️ Xóa một giao dịch
    */
-  async remove(id: number, userId: number) {
-    // ✨ Đổi string thành number ở đây
+  // 💡 ĐỔI userId từ number THÀNH string, id của transaction giữ là number hoặc string tùy vào schema của bạn
+  async remove(id: number, userId: string) {
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id, userId }, // Hết lỗi gạch đỏ vì cả 2 vế đã là number đồng bộ với Prisma
+      where: { id, userId },
     });
 
     if (!transaction) {
@@ -75,11 +79,10 @@ export class TransactionService {
   /**
    * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại
    */
-  async getAnalytics(userId: number) {
+  // 💡 ĐỔI userId từ number THÀNH string
+  async getAnalytics(userId: string) {
     const now = new Date();
-    // 📅 Xác định ngày đầu tháng (Ví dụ: 2026-05-01T00:00:00.000Z)
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    // 📅 Xác định ngày cuối tháng (Ví dụ: 2026-05-31T23:59:59.999Z)
     const endOfMonth = new Date(
       now.getFullYear(),
       now.getMonth() + 1,
@@ -90,9 +93,8 @@ export class TransactionService {
       999,
     );
 
-    // 🧠 Sử dụng tính năng groupBy của Prisma để gom nhóm dữ liệu siêu tốc từ Postgres
     const groups = await this.prisma.transaction.groupBy({
-      by: ['category', 'emoji'],
+      by: ['category', 'emoji'] as const,
       where: {
         userId: userId,
         spentAt: {
@@ -101,11 +103,10 @@ export class TransactionService {
         },
       },
       _sum: {
-        amount: true, // Cộng tổng số tiền của từng nhóm
+        amount: true,
       },
     });
 
-    // Định dạng lại cấu trúc JSON trả về cho Mobile dễ xử lý
     return groups.map((item) => ({
       category: item.category,
       emoji: item.emoji || '📝',

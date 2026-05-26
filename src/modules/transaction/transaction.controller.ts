@@ -7,17 +7,16 @@ import {
   Delete,
   UseGuards,
   Req,
-  ParseIntPipe,
   NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard'; // Đường dẫn có thể điều chỉnh tùy dự án của bạn
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 
-@ApiTags('Transactions 🍰') // Gắn nhãn phân nhóm đẹp đẽ trên Swagger
-@ApiBearerAuth() // Khai báo bắt buộc có Token trên Swagger
-@UseGuards(JwtAuthGuard) // Bảo vệ toàn bộ các endpoint trong Controller này
+@ApiTags('Transactions 🍰')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('transactions')
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
@@ -26,7 +25,7 @@ export class TransactionController {
   @ApiOperation({ summary: 'Ghi lại một khoản chi tiêu mới' })
   @ApiBody({ type: CreateTransactionDto })
   create(@Req() req: any, @Body() createTransactionDto: CreateTransactionDto) {
-    // req.user được điền tự động sau khi vượt qua JwtAuthGuard thành công
+    // req.user.id hiện tại là một chuỗi string (UUID)
     const userId = req.user.id;
     return this.transactionService.create(userId, createTransactionDto);
   }
@@ -41,19 +40,22 @@ export class TransactionController {
   }
 
   @Get('analytics')
+  @ApiOperation({
+    summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại',
+  })
   async getAnalytics(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
 
-    // Gọi xuống service lấy dữ liệu thống kê của User dạng số
-    return this.transactionService.getAnalytics(Number(userId));
+    // ✨ ĐÃ SỬA: Truyền trực tiếp chuỗi string userId xuống Service, không bọc qua Number() nữa
+    return this.transactionService.getAnalytics(userId);
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Xóa một giao dịch chi tiêu cũ' })
   async remove(@Param('id') id: string, @Req() req: any) {
-    // Lấy userId từ JWT ra (thường là string từ payload token)
     const userId = req.user?.id;
 
     if (!userId) {
@@ -62,7 +64,7 @@ export class TransactionController {
       );
     }
 
-    // 🔥 Chuyển đổi cả Transaction ID (id) và User ID (userId) từ string sang number
-    return this.transactionService.remove(Number(id), Number(userId));
+    // ✨ ĐÃ SỬA: Giữ nguyên Number(id) cho ID giao dịch và truyền chuỗi userId dạng string nguyên bản
+    return this.transactionService.remove(Number(id), userId);
   }
 }

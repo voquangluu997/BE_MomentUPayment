@@ -48,9 +48,10 @@ export class AuthService {
     return this.generateToken(user.id);
   }
 
-  private generateToken(userId: number) {
+  private async generateToken(userId: string) {
+    const payload = { userId: userId };
     return {
-      access_token: this.jwtService.sign({ userId }),
+      backend_jwt_token: this.jwtService.sign(payload),
     };
   }
 }
