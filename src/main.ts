@@ -31,10 +31,22 @@ async function bootstrap() {
   app.enableCors();
 
   const config = new DocumentBuilder()
-    .setTitle('Gold Track VN API')
-    .setDescription('Tài liệu API cho hệ thống theo dõi giá vàng và ngoại tệ')
+    .setTitle('Moment U Payment API')
+    .setDescription(
+      'Tài liệu API tích hợp hệ thống ví điện tử Moment U Payment',
+    )
     .setVersion('1.0')
-    .addBearerAuth() // Bật hỗ trợ cấu hình Token bảo mật JWT nếu có
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Nhập Token của bạn vào đây (Không cần gõ chữ Bearer)',
+        in: 'header',
+      },
+      'JWT-auth', // Tên key bảo mật để dùng với decorator @ApiBearerAuth() trong Controller
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

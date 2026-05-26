@@ -6,6 +6,8 @@ import { ExpressAdapter } from '@bull-board/express';
 import redisConfig from './config/redis.config';
 import { ReportsModule } from './reports/reports.module';
 import { AdminGuardMiddleware } from './common/middlewares/admin-guard.middleware';
+import { AuthModule } from './auth/auth.module';
+import { TransactionModule } from './modules/transaction/transaction.module';
 
 @Module({
   imports: [
@@ -27,6 +29,9 @@ import { AdminGuardMiddleware } from './common/middlewares/admin-guard.middlewar
       route: '/admin/queues',
       adapter: ExpressAdapter,
     }),
+
+    AuthModule,
+    TransactionModule,
     ReportsModule,
   ],
 })

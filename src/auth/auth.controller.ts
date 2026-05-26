@@ -6,6 +6,8 @@ import {
   Query,
   BadRequestException,
   UnauthorizedException,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -15,6 +17,8 @@ import * as bcrypt from 'bcrypt';
 import { UserService } from '../user/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -23,6 +27,25 @@ export class AuthController {
     private userService: UserService,
     private jwtService: JwtService,
   ) {}
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth() // Để hiển thị nút khóa Token trên Swagger UI
+  @Get('me')
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết của người dùng hiện tại' })
+  async getProfile(@Req() req: any) {
+    // req.user được điền tự động sau khi vượt qua JwtAuthGuard thành công nhờ JwtStrategy
+    const user = req.user;
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isEmailVerified: user.isEmailVerified, // Trường quan trọng nhất để Flutter tắt Banner vàng đây nè!
+      },
+    };
+  }
 
   /**
    * POST /auth/register - Đăng ký tài khoản thông thường
