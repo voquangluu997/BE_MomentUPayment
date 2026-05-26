@@ -45,13 +45,24 @@ export class TransactionService {
    */
   async findAllByUser(userId: string) {
     try {
+      // 🛡️ BẢO MẬT: Bắt buộc phải có mệnh đề 'where: { userId }'
+      // để Prisma chỉ quét các bản ghi thuộc sở hữu của chính user này
       return await this.prisma.transaction.findMany({
-        where: { userId: userId },
-        orderBy: { spentAt: 'desc' },
+        where: {
+          userId: userId, // Ép kiểu string chắc chắn để tránh bị nhận nhầm
+        },
+        orderBy: {
+          spentAt: 'desc', // Sắp xếp giao dịch mới nhất lên đầu
+        },
       });
     } catch (error) {
-      this.logger.error('Failed to fetch transactions', error);
-      throw new InternalServerErrorException('Không thể tải lịch sử giao dịch');
+      this.logger.error(
+        `Failed to fetch transactions for user ${userId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Không thể tải lịch sử giao dịch của bạn',
+      );
     }
   }
 

@@ -24,7 +24,10 @@ export class TransactionController {
   @Post()
   @ApiOperation({ summary: 'Ghi lại một khoản chi tiêu mới' })
   @ApiBody({ type: CreateTransactionDto })
-  async create(@Req() req: any, @Body() createTransactionDto: CreateTransactionDto) {
+  async create(
+    @Req() req: any,
+    @Body() createTransactionDto: CreateTransactionDto,
+  ) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
@@ -34,7 +37,9 @@ export class TransactionController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại' })
+  @ApiOperation({
+    summary: 'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại',
+  })
   async findAll(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
@@ -45,7 +50,9 @@ export class TransactionController {
   }
 
   @Get('analytics')
-  @ApiOperation({ summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại' })
+  @ApiOperation({
+    summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại',
+  })
   async getAnalytics(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
@@ -59,12 +66,11 @@ export class TransactionController {
   async remove(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
-      throw new NotFoundException('Không tìm thấy thông tin định danh người dùng!');
+      throw new NotFoundException(
+        'Không tìm thấy thông tin định danh người dùng!',
+      );
     }
 
-    // 💡 ĐÃ SỬA: Nếu ID giao dịch của bạn trong schema Prisma là String (UUID) giống userId, 
-    // hãy bỏ bọc 'Number()' đi và truyền trực tiếp 'id' sang dạng String. 
-    // Ở đây tôi giữ tạm Number(id), nếu DB của bạn là String hãy đổi thành: this.transactionService.remove(id, userId)
     const transactionId = isNaN(Number(id)) ? id : Number(id);
     return await this.transactionService.remove(transactionId as any, userId);
   }

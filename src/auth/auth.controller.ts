@@ -101,7 +101,6 @@ export class AuthController {
     }
 
     const backendToken = this.jwtService.sign({ userId: user.id });
-
     return {
       success: true,
       backend_jwt_token: backendToken,

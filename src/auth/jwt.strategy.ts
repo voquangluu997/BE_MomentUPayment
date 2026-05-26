@@ -23,7 +23,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     // 🌸 ĐÃ SỬA: Ép kiểu userId một cách tường minh thành String để khớp với Schema Prisma
     const userIdStr = String(payload.userId);
-
     const user = await this.prisma.user.findUnique({
       where: {
         id: userIdStr,
