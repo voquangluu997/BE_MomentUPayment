@@ -15,7 +15,7 @@ import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 
 @ApiTags('Transactions 🍰')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
 export class TransactionController {
@@ -24,47 +24,48 @@ export class TransactionController {
   @Post()
   @ApiOperation({ summary: 'Ghi lại một khoản chi tiêu mới' })
   @ApiBody({ type: CreateTransactionDto })
-  create(@Req() req: any, @Body() createTransactionDto: CreateTransactionDto) {
-    // req.user.id hiện tại là một chuỗi string (UUID)
-    const userId = req.user.id;
-    return this.transactionService.create(userId, createTransactionDto);
+  async create(@Req() req: any, @Body() createTransactionDto: CreateTransactionDto) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
+    }
+    // 💡 ĐÃ SỬA: Thêm await để đợi xử lý hoàn tất từ Service
+    return await this.transactionService.create(userId, createTransactionDto);
   }
 
   @Get()
-  @ApiOperation({
-    summary: 'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại',
-  })
-  findAll(@Req() req: any) {
-    const userId = req.user.id;
-    return this.transactionService.findAllByUser(userId);
+  @ApiOperation({ summary: 'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại' })
+  async findAll(@Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
+    }
+    // 💡 ĐÃ SỬA: Thêm await đảm bảo không lỗi unresolved Promise
+    return await this.transactionService.findAllByUser(userId);
   }
 
   @Get('analytics')
-  @ApiOperation({
-    summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại',
-  })
+  @ApiOperation({ summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại' })
   async getAnalytics(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
-
-    // ✨ ĐÃ SỬA: Truyền trực tiếp chuỗi string userId xuống Service, không bọc qua Number() nữa
-    return this.transactionService.getAnalytics(userId);
+    return await this.transactionService.getAnalytics(userId);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Xóa một giao dịch chi tiêu cũ' })
   async remove(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.id;
-
     if (!userId) {
-      throw new NotFoundException(
-        'Không tìm thấy thông tin định danh người dùng!',
-      );
+      throw new NotFoundException('Không tìm thấy thông tin định danh người dùng!');
     }
 
-    // ✨ ĐÃ SỬA: Giữ nguyên Number(id) cho ID giao dịch và truyền chuỗi userId dạng string nguyên bản
-    return this.transactionService.remove(Number(id), userId);
+    // 💡 ĐÃ SỬA: Nếu ID giao dịch của bạn trong schema Prisma là String (UUID) giống userId, 
+    // hãy bỏ bọc 'Number()' đi và truyền trực tiếp 'id' sang dạng String. 
+    // Ở đây tôi giữ tạm Number(id), nếu DB của bạn là String hãy đổi thành: this.transactionService.remove(id, userId)
+    const transactionId = isNaN(Number(id)) ? id : Number(id);
+    return await this.transactionService.remove(transactionId as any, userId);
   }
 }

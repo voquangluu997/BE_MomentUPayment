@@ -17,6 +17,13 @@ export class UserService {
     });
   }
 
+  async findById(id: string) {
+    // hoặc id: number tùy thuộc vào kiểu dữ liệu của bạn
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
+  }
+
   async createUser(data: {
     email: string;
     password?: string;

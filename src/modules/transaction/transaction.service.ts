@@ -19,10 +19,9 @@ export class TransactionService {
   /**
    * ✨ Tạo một giao dịch chi tiêu mới
    */
-  // 💡 ĐỔI userId từ number THÀNH string
   async create(userId: string, dto: CreateTransactionDto) {
     try {
-      // 💡 Nếu lỗi vẫn còn, hãy thử đổi thành: this.prisma.Transaction.create
+      // 💡 ĐÃ SỬA: Thêm await chuẩn chỉnh trong khối try-catch
       return await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
@@ -30,11 +29,11 @@ export class TransactionService {
           imageUrl: dto.imageUrl,
           category: dto.category,
           emoji: dto.emoji ?? '🌸',
-          userId: userId, // Bây giờ là chuỗi String UUID đồng bộ với DB
+          userId: userId,
         },
       });
     } catch (error) {
-      this.logger.error('Failed to create transaction', error as any);
+      this.logger.error('Failed to create transaction', error);
       throw new InternalServerErrorException(
         'Không thể lưu giao dịch hiện tại',
       );
@@ -44,21 +43,25 @@ export class TransactionService {
   /**
    * ✨ Lấy toàn bộ lịch sử chi tiêu của riêng user đang đăng nhập
    */
-  // 💡 ĐỔI userId từ number THÀNH string
   async findAllByUser(userId: string) {
-    return this.prisma.transaction.findMany({
-      where: { userId: userId },
-      orderBy: { spentAt: 'desc' },
-    });
+    try {
+      return await this.prisma.transaction.findMany({
+        where: { userId: userId },
+        orderBy: { spentAt: 'desc' },
+      });
+    } catch (error) {
+      this.logger.error('Failed to fetch transactions', error);
+      throw new InternalServerErrorException('Không thể tải lịch sử giao dịch');
+    }
   }
 
   /**
    * 🗑️ Xóa một giao dịch
    */
-  // 💡 ĐỔI userId từ number THÀNH string, id của transaction giữ là number hoặc string tùy vào schema của bạn
-  async remove(id: number, userId: string) {
+  async remove(id: number | string, userId: string) {
+    // 💡 ĐÃ SỬA: Tìm kiếm động linh hoạt kiểu dữ liệu ID (Ép kiểu an toàn)
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id, userId },
+      where: { id: id as any, userId },
     });
 
     if (!transaction) {
@@ -68,18 +71,24 @@ export class TransactionService {
     }
 
     if (transaction.imageUrl && transaction.imageUrl.trim() !== '') {
-      await this.uploadService.deleteImage(transaction.imageUrl);
+      try {
+        await this.uploadService.deleteImage(transaction.imageUrl);
+      } catch (uploadError) {
+        this.logger.warn(
+          'Failed to delete image from Cloudinary, continuing transaction deletion',
+          uploadError,
+        );
+      }
     }
 
-    return this.prisma.transaction.delete({
-      where: { id },
+    return await this.prisma.transaction.delete({
+      where: { id: id as any },
     });
   }
 
   /**
    * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại
    */
-  // 💡 ĐỔI userId từ number THÀNH string
   async getAnalytics(userId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -93,24 +102,32 @@ export class TransactionService {
       999,
     );
 
-    const groups = await this.prisma.transaction.groupBy({
-      by: ['category', 'emoji'] as const,
-      where: {
-        userId: userId,
-        spentAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+    try {
+      // 💡 ĐÃ SỬA: Bỏ 'as const' gây lỗi map nội bộ của PrismaClient
+      const groups = await this.prisma.transaction.groupBy({
+        by: ['category', 'emoji'],
+        where: {
+          userId: userId,
+          spentAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
         },
-      },
-      _sum: {
-        amount: true,
-      },
-    });
+        _sum: {
+          amount: true,
+        },
+      });
 
-    return groups.map((item) => ({
-      category: item.category,
-      emoji: item.emoji || '📝',
-      totalAmount: item._sum.amount || 0,
-    }));
+      return groups.map((item) => ({
+        category: item.category,
+        emoji: item.emoji || '📝',
+        totalAmount: item._sum.amount || 0,
+      }));
+    } catch (error) {
+      this.logger.error('Failed to generate analytics', error);
+      throw new InternalServerErrorException(
+        'Không thể tính toán dữ liệu thống kê',
+      );
+    }
   }
 }
