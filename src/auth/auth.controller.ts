@@ -14,7 +14,7 @@ import { Queue } from 'bull';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
-import { UserService } from '../user/user.service';
+import { UserService } from '../users/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';

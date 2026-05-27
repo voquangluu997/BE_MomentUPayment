@@ -4,7 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport'; // 🌸 THÊM IMPORT NÀY
 import { AuthController } from './auth.controller';
 import { MailProcessor } from './mail.processor';
-import { UserService } from '../user/user.service';
+import { UserService } from '../users/user.service';
 import { JwtStrategy } from './jwt.strategy'; // 🌸 THÊM IMPORT NÀY
 import { PrismaModule } from '../prisma/prisma.module'; // Đảm bảo import thêm PrismaModule nếu JwtStrategy dùng PrismaService trực tiếp
 import { ConfigModule, ConfigService } from '@nestjs/config';

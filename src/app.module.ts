@@ -8,6 +8,7 @@ import { ReportsModule } from './reports/reports.module';
 import { AdminGuardMiddleware } from './common/middlewares/admin-guard.middleware';
 import { AuthModule } from './auth/auth.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
+import { UserModule } from './users/user.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TransactionModule } from './modules/transaction/transaction.module';
     AuthModule,
     TransactionModule,
     ReportsModule,
+    UserModule,
   ],
 })
 export class AppModule implements NestModule {

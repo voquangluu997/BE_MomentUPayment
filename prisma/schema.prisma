@@ -19,7 +19,8 @@ model User {
   avatar            String?
   isEmailVerified   Boolean   @default(false)
   verificationToken String?   @unique         
-  googleId          String?   @unique         
+  googleId          String?   @unique        
+  budgetLimit       Float?   // 🔑 AC: Thêm trường ngưỡng chi tiêu cho tháng 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @default(now()) @updatedAt
   transactions      Transaction[] 
