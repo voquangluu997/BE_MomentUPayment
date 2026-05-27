@@ -5,11 +5,19 @@ import {
   Body,
   Param,
   Delete,
+  Put, // 🔑 THÊM PUT VÀO IMPORT
   UseGuards,
   Req,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -32,33 +40,77 @@ export class TransactionController {
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
-    // 💡 ĐÃ SỬA: Thêm await để đợi xử lý hoàn tất từ Service
     return await this.transactionService.create(userId, createTransactionDto);
   }
 
   @Get()
   @ApiOperation({
-    summary: 'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại',
+    summary:
+      'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại (Có phân trang)',
   })
-  async findAll(@Req() req: any) {
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    example: 1,
+    description: 'Số trang',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 15,
+    description: 'Số phần tử mỗi trang',
+  })
+  async findAll(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
-    // 💡 ĐÃ SỬA: Thêm await đảm bảo không lỗi unresolved Promise
-    return await this.transactionService.findAllByUser(userId);
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+
+    return await this.transactionService.findAllByUser(
+      userId,
+      pageNum,
+      limitNum,
+    );
   }
 
   @Get('analytics')
-  @ApiOperation({
-    summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại',
-  })
+  @ApiOperation({ summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục' })
   async getAnalytics(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
     return await this.transactionService.getAnalytics(userId);
+  }
+
+  // 🔑 HÀM MỚI: CẬP NHẬT GIAO DỊCH
+  @Put(':id')
+  @ApiOperation({ summary: 'Cập nhật thông tin giao dịch' })
+  @ApiBody({ type: CreateTransactionDto }) // Bạn có thể tạo UpdateTransactionDto nếu muốn
+  async update(
+    @Param('id') id: string,
+    @Body() updateTransactionDto: CreateTransactionDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
+    }
+
+    // Xử lý id dạng number hoặc string tùy vào DB của bạn
+    const transactionId = isNaN(Number(id)) ? id : Number(id);
+
+    return await this.transactionService.update(
+      transactionId as any,
+      userId,
+      updateTransactionDto,
+    );
   }
 
   @Delete(':id')

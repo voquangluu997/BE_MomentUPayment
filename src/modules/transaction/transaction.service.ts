@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UploadService } from '../upload/upload.service';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 @Injectable()
 export class TransactionService {
@@ -21,7 +22,6 @@ export class TransactionService {
    */
   async create(userId: string, dto: CreateTransactionDto) {
     try {
-      // 💡 ĐÃ SỬA: Thêm await chuẩn chỉnh trong khối try-catch
       return await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
@@ -41,23 +41,26 @@ export class TransactionService {
   }
 
   /**
-   * ✨ Lấy toàn bộ lịch sử chi tiêu của riêng user đang đăng nhập
+   * ✨ CẬP NHẬT: Lấy lịch sử chi tiêu kèm phân trang (Lazy Load)
    */
-  async findAllByUser(userId: string) {
+  async findAllByUser(userId: string, page: number = 1, limit: number = 15) {
     try {
-      // 🛡️ BẢO MẬT: Bắt buộc phải có mệnh đề 'where: { userId }'
-      // để Prisma chỉ quét các bản ghi thuộc sở hữu của chính user này
+      // 🔑 Tính toán toán học số lượng record cần nhảy qua
+      const skipRecords = (page - 1) * limit;
+
       return await this.prisma.transaction.findMany({
         where: {
-          userId: userId, // Ép kiểu string chắc chắn để tránh bị nhận nhầm
+          userId: userId,
         },
         orderBy: {
           spentAt: 'desc', // Sắp xếp giao dịch mới nhất lên đầu
         },
+        skip: skipRecords, // 🔑 Bỏ qua các phần tử của các trang trước
+        take: limit, // 🔑 Chỉ lấy đúng số lượng giới hạn của trang hiện tại
       });
     } catch (error) {
       this.logger.error(
-        `Failed to fetch transactions for user ${userId}`,
+        `Failed to fetch transactions for user ${userId} at page ${page}`,
         error,
       );
       throw new InternalServerErrorException(
@@ -70,7 +73,6 @@ export class TransactionService {
    * 🗑️ Xóa một giao dịch
    */
   async remove(id: number | string, userId: string) {
-    // 💡 ĐÃ SỬA: Tìm kiếm động linh hoạt kiểu dữ liệu ID (Ép kiểu an toàn)
     const transaction = await this.prisma.transaction.findFirst({
       where: { id: id as any, userId },
     });
@@ -114,7 +116,6 @@ export class TransactionService {
     );
 
     try {
-      // 💡 ĐÃ SỬA: Bỏ 'as const' gây lỗi map nội bộ của PrismaClient
       const groups = await this.prisma.transaction.groupBy({
         by: ['category', 'emoji'],
         where: {
@@ -140,5 +141,34 @@ export class TransactionService {
         'Không thể tính toán dữ liệu thống kê',
       );
     }
+  }
+
+  async update(id: number, userId: string, updateDto: UpdateTransactionDto) {
+    // 1. Tìm xem giao dịch có tồn tại và thuộc về user này không
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: id,
+        userId: userId, // Đảm bảo quyền sở hữu
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(
+        'Giao dịch không tồn tại hoặc bạn không có quyền chỉnh sửa!',
+      );
+    }
+
+    // 2. Thực hiện cập nhật
+    return await this.prisma.transaction.update({
+      where: { id: id },
+      data: {
+        amount: updateDto.amount ?? transaction.amount,
+        category: updateDto.category ?? transaction.category,
+        note: updateDto.note ?? transaction.note,
+        emoji: updateDto.emoji ?? transaction.emoji,
+        imageUrl: updateDto.imageUrl ?? transaction.imageUrl,
+        // Cập nhật các trường khác nếu có...
+      },
+    });
   }
 }
