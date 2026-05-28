@@ -21,6 +21,8 @@ model User {
   verificationToken String?   @unique         
   googleId          String?   @unique        
   budgetLimit       Float?   // 🔑 AC: Thêm trường ngưỡng chi tiêu cho tháng 
+  fcmToken          String?
+  language          String   @default("vi")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @default(now()) @updatedAt
   transactions      Transaction[] 

@@ -100,4 +100,18 @@ export class UserService {
       totalSpent: aggregateSpent._sum.amount || 0,
     };
   }
+
+  async saveFcmToken(
+    userId: string,
+    fcmToken: string,
+    language: string = 'vi',
+  ) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        fcmToken,
+        language, // Lưu ngôn ngữ hệ thống của user vào đây
+      },
+    });
+  }
 }

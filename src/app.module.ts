@@ -9,9 +9,13 @@ import { AdminGuardMiddleware } from './common/middlewares/admin-guard.middlewar
 import { AuthModule } from './auth/auth.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { UserModule } from './users/user.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { BudgetCronService } from './modules/firebase/budget-cron.service';
+import { NotificationModule } from './modules/firebase/notification.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true, load: [redisConfig] }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
@@ -35,7 +39,9 @@ import { UserModule } from './users/user.module';
     TransactionModule,
     ReportsModule,
     UserModule,
+    NotificationModule,
   ],
+  providers: [BudgetCronService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
