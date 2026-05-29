@@ -114,4 +114,67 @@ export class UserService {
       },
     });
   }
+
+  /**
+   * 1. Lấy trạng thái cài đặt thông báo của người dùng
+   */
+  async getNotificationSettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        notiBudgetAlerts: true,
+        notiSecuritySystem: true,
+        notiSharedWallet: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        'Không tìm thấy người dùng này trên hệ thống!',
+      );
+    }
+
+    // Gói dữ liệu và map lại key chuẩn form camelCase khớp với Client Flutter mong đợi
+    return {
+      budgetAlerts: user.notiBudgetAlerts,
+      securitySystem: user.notiSecuritySystem,
+      sharedWalletUpdates: user.notiSharedWallet,
+    };
+  }
+
+  /**
+   * 2. Cập nhật cấu hình cài đặt thông báo
+   */
+  async updateNotificationSettings(userId: string, settings: any) {
+    // Kiểm tra user có tồn tại trước khi cập nhật
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!userExists) {
+      throw new NotFoundException(
+        'Không tìm thấy người dùng để cập nhật cài đặt!',
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        // Sử dụng toán tử điều kiện để chỉ cập nhật những trường được truyền lên
+        ...(settings.budgetAlerts !== undefined && {
+          notiBudgetAlerts: settings.budgetAlerts,
+        }),
+        ...(settings.securitySystem !== undefined && {
+          notiSecuritySystem: settings.securitySystem,
+        }),
+        ...(settings.sharedWalletUpdates !== undefined && {
+          notiSharedWallet: settings.sharedWalletUpdates,
+        }),
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Cập nhật cấu hình thông báo thành công!',
+    };
+  }
 }

@@ -4,7 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -12,30 +12,53 @@ datasource db {
 }
 
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  password          String?   
-  name              String?
-  avatar            String?
-  isEmailVerified   Boolean   @default(false)
-  verificationToken String?   @unique         
-  googleId          String?   @unique        
-  budgetLimit       Float?   // 🔑 AC: Thêm trường ngưỡng chi tiêu cho tháng 
-  fcmToken          String?
-  language          String   @default("vi")
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @default(now()) @updatedAt
-  transactions      Transaction[] 
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  password            String?
+  name                String?
+  avatar              String?
+  isEmailVerified     Boolean        @default(false)
+  verificationToken   String?        @unique
+  googleId            String?        @unique
+  budgetLimit         Float? 
+  fcmToken            String?
+  language            String         @default("vi")
+  isFirstLogin        Boolean       @default(true)
+  
+  // 🔑 Cài đặt thông báo (Opt-in / Opt-out)
+  notiBudgetAlerts    Boolean        @default(true)
+  notiSecuritySystem  Boolean        @default(true)
+  notiSharedWallet    Boolean        @default(true)
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @default(now()) @updatedAt
+  transactions        Transaction[]
+  notifications       Notification[]
 }
 
 model Transaction {
-  id        Int      @id @default(autoincrement())
-  amount    Float
-  note      String?
-  imageUrl  String?
-  category  String   @default("General")
-  emoji     String?  // Lưu cảm xúc 🥰, 💸
-  spentAt   DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id       Int      @id @default(autoincrement())
+  amount   Float
+  note     String?
+  imageUrl String?
+  category String   @default("General")
+  emoji    String? // Lưu cảm xúc 🥰, 💸
+  spentAt  DateTime @default(now())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // 🔑 Thay thế title/body bằng Key đa ngôn ngữ và tham số
+  type        String   // VD: 'budget_80', 'budget_100', 'email_verified', 'aggregated_tx'
+  titleKey    String   // VD: 'notiBudgetWarningTitle'
+  bodyKey     String   // VD: 'notiBudgetWarningBody'
+  arguments   String[] @default([]) // Array lưu biến số VD: ["Tiền cà phê", "85"]
+  
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }

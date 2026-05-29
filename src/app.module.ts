@@ -11,7 +11,8 @@ import { TransactionModule } from './modules/transaction/transaction.module';
 import { UserModule } from './users/user.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BudgetCronService } from './modules/firebase/budget-cron.service';
-import { NotificationModule } from './modules/firebase/notification.module';
+import { FirebaseNotificationModule } from './modules/firebase/firebase-notification.module';
+import { NotificationModule } from './modules/notifications/notification.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { NotificationModule } from './modules/firebase/notification.module';
     ReportsModule,
     UserModule,
     NotificationModule,
+    FirebaseNotificationModule
   ],
   providers: [BudgetCronService],
 })

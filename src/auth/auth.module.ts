@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport'; // 🌸 THÊM IMPORT NÀY
+import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service'; // 🌸 THÊM IMPORT NÀY (Khai báo đường dẫn tới file service)
 import { MailProcessor } from './mail.processor';
 import { UserService } from '../users/user.service';
-import { JwtStrategy } from './jwt.strategy'; // 🌸 THÊM IMPORT NÀY
-import { PrismaModule } from '../prisma/prisma.module'; // Đảm bảo import thêm PrismaModule nếu JwtStrategy dùng PrismaService trực tiếp
+import { JwtStrategy } from './jwt.strategy';
+import { PrismaModule } from '../prisma/prisma.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
@@ -31,14 +32,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   ],
   controllers: [AuthController],
   providers: [
+    AuthService, // 🌸 ĐÃ SỬA: Đăng ký AuthService ở đây để Controller có thể Inject (Tiêm) vào được!
     MailProcessor,
     UserService,
-    JwtStrategy, // 🌸 ĐÃ SỬA: Phải đăng ký JwtStrategy làm provider ở đây
+    JwtStrategy,
   ],
   exports: [
+    AuthService, // 🌸 THÊM: Xuất luôn AuthService ra ngoài phòng trường hợp sau này Module khác cần dùng tới nó
     UserService,
-    PassportModule, // 🌸 ĐÃ SỬA: Xuất PassportModule ra để các controller khác hưởng sái cấu hình
-    JwtStrategy, // 🌸 ĐÃ SỬA: Xuất JwtStrategy ra ngoài cho các Module khác (như Transaction) sử dụng
+    PassportModule,
+    JwtStrategy,
   ],
 })
 export class AuthModule {}

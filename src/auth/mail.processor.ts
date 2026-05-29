@@ -29,8 +29,8 @@ export class MailProcessor {
 
     try {
       await this.transporter.sendMail({
-        from: '"Moment U Payment" <onboarding@resend.dev>',
-        to: email,
+        from: '"Moment U Payment" <onboarding@resend.dev>', ////todo Thay bằng tên miền khi chuẩn bị up lên prod
+        to: 'voquangluu997@gmail.com', //todo Thay bằng email thực tế của user(email)
         subject: '✨ Activate your Moment U Payment account, yayyy! ✨',
         // 🌸 CẬP NHẬT: Giao diện và nội dung tiếng Anh siêu dễ thương kèm nhắc nhở 30 ngày
         html: `

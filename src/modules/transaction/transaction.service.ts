@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UploadService } from '../upload/upload.service';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { FirebaseAdminService } from '../firebase/firebase-admin.service';
 
 @Injectable()
 export class TransactionService {
@@ -15,6 +16,7 @@ export class TransactionService {
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
+    private readonly firebaseService: FirebaseAdminService,
   ) {}
 
   /**
@@ -22,7 +24,8 @@ export class TransactionService {
    */
   async create(userId: string, dto: CreateTransactionDto) {
     try {
-      return await this.prisma.transaction.create({
+      // 🛠️ Thêm await để đảm bảo giao dịch lưu vào DB xong trước khi check budget
+      const newTransaction = await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
           note: dto.note,
@@ -32,6 +35,11 @@ export class TransactionService {
           userId: userId,
         },
       });
+
+      // 🛠️ Thêm await để chạy đồng bộ logic tính toán
+      await this.checkBudgetAndNotify(userId);
+
+      return newTransaction;
     } catch (error) {
       this.logger.error('Failed to create transaction', error);
       throw new InternalServerErrorException(
@@ -45,7 +53,6 @@ export class TransactionService {
    */
   async findAllByUser(userId: string, page: number = 1, limit: number = 15) {
     try {
-      // 🔑 Tính toán toán học số lượng record cần nhảy qua
       const skipRecords = (page - 1) * limit;
 
       return await this.prisma.transaction.findMany({
@@ -53,10 +60,10 @@ export class TransactionService {
           userId: userId,
         },
         orderBy: {
-          spentAt: 'desc', // Sắp xếp giao dịch mới nhất lên đầu
+          spentAt: 'desc',
         },
-        skip: skipRecords, // 🔑 Bỏ qua các phần tử của các trang trước
-        take: limit, // 🔑 Chỉ lấy đúng số lượng giới hạn của trang hiện tại
+        skip: skipRecords,
+        take: limit,
       });
     } catch (error) {
       this.logger.error(
@@ -144,11 +151,10 @@ export class TransactionService {
   }
 
   async update(id: number, userId: string, updateDto: UpdateTransactionDto) {
-    // 1. Tìm xem giao dịch có tồn tại và thuộc về user này không
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         id: id,
-        userId: userId, // Đảm bảo quyền sở hữu
+        userId: userId,
       },
     });
 
@@ -158,7 +164,6 @@ export class TransactionService {
       );
     }
 
-    // 2. Thực hiện cập nhật
     return await this.prisma.transaction.update({
       where: { id: id },
       data: {
@@ -167,8 +172,80 @@ export class TransactionService {
         note: updateDto.note ?? transaction.note,
         emoji: updateDto.emoji ?? transaction.emoji,
         imageUrl: updateDto.imageUrl ?? transaction.imageUrl,
-        // Cập nhật các trường khác nếu có...
       },
     });
+  }
+
+  // ==========================================
+  // 🔍 HÀM KIỂM TRA NGÂN SÁCH & BẮN THÔNG BÁO
+  // ==========================================
+  private async checkBudgetAndNotify(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { budgetLimit: true },
+    });
+
+    if (!user || !user.budgetLimit) return;
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const transactionsThisMonth = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        spentAt: { gte: startOfMonth },
+      },
+    });
+
+    const totalSpent = transactionsThisMonth.reduce(
+      (sum, tx) => sum + tx.amount,
+      0,
+    );
+
+    const percentage = (totalSpent / user.budgetLimit) * 100;
+    const roundedPercent = percentage.toFixed(0);
+
+    // 🌸 TẠO THÔNG BÁO IN-APP KHỚP VỚI CẤU TRÚC PRISMA CỦA AUTH SERVICE
+    if (percentage >= 100) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId: userId,
+            type: 'budget_100',
+            titleKey: 'notiBudgetExceededTitle',
+            bodyKey: 'notiBudgetExceededBody',
+            arguments: ['Ngân sách tháng', roundedPercent],
+            // isRead mặc định là false theo schema (nếu có)
+          },
+        });
+      } catch (err) {
+        this.logger.error('Lỗi khi tạo In-App Notification (100%)', err);
+      }
+
+      await this.firebaseService.sendLocalizedNotification(userId, 'AM_QUY', {
+        budgetName: 'Ngân sách tháng',
+        percentage: roundedPercent,
+      });
+    } else if (percentage >= 80) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId: userId,
+            type: 'budget_80',
+            titleKey: 'notiBudgetWarningTitle',
+            bodyKey: 'notiBudgetWarningBody',
+            arguments: ['Ngân sách tháng', roundedPercent],
+          },
+        });
+      } catch (err) {
+        this.logger.error('Lỗi khi tạo In-App Notification (80%)', err);
+      }
+
+      await this.firebaseService.sendLocalizedNotification(userId, 'THO_OXY', {
+        budgetName: 'Ngân sách tháng',
+        percentage: roundedPercent,
+      });
+    }
   }
 }
