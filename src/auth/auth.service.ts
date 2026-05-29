@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserService } from '../users/user.service'; // Lấy từ Controller cũ
+import { UserService } from '../users/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -12,6 +12,9 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -35,7 +38,6 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    // Lưu user vào DB
     const newUser = await this.userService.createUser({
       email: dto.email,
       password: hashedPassword,
@@ -44,7 +46,6 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    // Gửi mail vô hàng đợi
     await this.mailQueue.add('send-activation-email', {
       email: newUser.email,
       token: verificationToken,
@@ -81,12 +82,8 @@ export class AuthService {
       );
     }
 
-    // ==========================================
-    // 🔔 LẦN ĐẦU ĐĂNG NHẬP: Bắn combo 3 thông báo Onboarding
-    // ==========================================
     if (user['isFirstLogin'] === true) {
       try {
-        // 1. Nhắc xác thực Email (Nếu chưa xác thực)
         if (!user.isEmailVerified) {
           await this.prisma.notification.create({
             data: {
@@ -99,29 +96,26 @@ export class AuthService {
           });
         }
 
-        // 2. Nhắc tạo Moment Payment đầu tiên
         await this.prisma.notification.create({
           data: {
             userId: user.id,
-            type: 'onboarding_first_transaction', // Type này dùng để làm Deep Link trên Flutter
+            type: 'onboarding_first_transaction',
             titleKey: 'notiFirstTxnTitle',
             bodyKey: 'notiFirstTxnBody',
             arguments: [],
           },
         });
 
-        // 3. Nhắc thiết lập ngân sách chi tiêu
         await this.prisma.notification.create({
           data: {
             userId: user.id,
-            type: 'onboarding_set_budget', // Type này dùng để làm Deep Link trên Flutter
+            type: 'onboarding_set_budget',
             titleKey: 'notiSetBudgetTitle',
             bodyKey: 'notiSetBudgetBody',
             arguments: [],
           },
         });
 
-        // Đánh dấu đã qua lần đăng nhập đầu tiên
         await this.userService.updateUser(user.id, {
           isFirstLogin: false,
         } as any);
@@ -194,13 +188,11 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired token.');
     }
 
-    // Cập nhật trạng thái user
     await this.userService.updateUser(user.id, {
       isEmailVerified: true,
       verificationToken: null,
     });
 
-    // 🔔 THÔNG BÁO 3: Xác thực email thành công
     try {
       const userSettings = await this.prisma.user.findUnique({
         where: { id: user.id },
@@ -254,6 +246,128 @@ export class AuthService {
     return {
       success: true,
       message: 'New verification email dispatched successfully.',
+    };
+  }
+
+  // =========================================================================
+  // 6. ✨ ĐÃ CHUYỂN: LẤY THÔNG TIN CHI TIẾT USER (GET PROFILE)
+  // =========================================================================
+  async getProfile(user: any) {
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isEmailVerified: user.isEmailVerified,
+      },
+    };
+  }
+
+  // =========================================================================
+  // 7. ✨ THÊM MỚI: YÊU CẦU QUÊN MẬT KHẨU (FORGOT PASSWORD)
+  // =========================================================================
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.userService.findByEmail(dto.email);
+    console.log("u: ", user);
+    if (!user) {
+      // Để bảo mật hệ thống tránh dò quét Email, bạn có thể trả về success luôn,
+      // hoặc bắn lỗi trực tiếp tuỳ nhu cầu trải nghiệm người dùng:
+      throw new BadRequestException(
+        'Email này chưa được đăng ký tài khoản rùi! 😢',
+      );
+    }
+
+    // Tạo mã OTP 6 số ngẫu nhiên
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // Hết hạn sau 15 phút
+
+    // Cập nhật thông tin OTP vào database thông qua UserService
+    await this.userService.updateUser(user.id, {
+      resetPasswordOtp: otp,
+      resetPasswordExpires: otpExpires,
+    } as any);
+
+    // Đẩy nhiệm vụ gửi Email khôi phục vào hàng đợi Bull Queue
+    await this.mailQueue.add('send-reset-password-email', {
+      email: user.email,
+      otp: otp,
+    });
+
+    return {
+      success: true,
+      message: 'Mã xác thực OTP khôi phục mật khẩu đã gửi vào hòm thư! ✉️',
+    };
+  }
+
+  // =========================================================================
+  // 8. ✨ THÊM MỚI: ĐẶT LẠI MẬT KHẨU BẰNG OTP (RESET PASSWORD WITH OTP)
+  // =========================================================================
+  async resetPassword(dto: ResetPasswordDto) {
+    const user = await this.userService.findByEmail(dto.email);
+
+    if (!user) {
+      throw new BadRequestException(
+        'Thông tin xác thực tài khoản không hợp lệ! ❌',
+      );
+    }
+
+    // Kiểm tra tính hợp lệ và thời gian hết hạn của OTP
+    const isOtpValid = user['resetPasswordOtp'] === dto.otp;
+    const isOtpExpired = new Date(user['resetPasswordExpires']) < new Date();
+
+    if (!isOtpValid || isOtpExpired) {
+      throw new BadRequestException(
+        'Mã OTP không chính xác hoặc đã hết hạn mất rồi! ❌',
+      );
+    }
+
+    // Hash mật khẩu mới của người dùng
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
+
+    // Cập nhật mật khẩu mới và xóa sạch dữ liệu OTP thừa trong DB
+    await this.userService.updateUser(user.id, {
+      password: hashedNewPassword,
+      resetPasswordOtp: null,
+      resetPasswordExpires: null,
+    } as any);
+
+    return {
+      success: true,
+      message: 'Đặt lại mật khẩu mới thành công rùi nè! 🎉',
+    };
+  }
+
+  // =========================================================================
+  // 9. ✨ THÊM MỚI: ĐỔI MẬT KHẨU KHI ĐANG ĐĂNG NHẬP (UPDATE PASSWORD)
+  // =========================================================================
+  async updatePassword(userId: string, dto: UpdatePasswordDto) {
+    const user = await this.userService.findById(userId);
+    if (!user || !user.password) {
+      throw new BadRequestException(
+        'Không tìm thấy thông tin tài khoản hợp lệ! 😢',
+      );
+    }
+
+    // Kiểm tra mật khẩu hiện tại xem khớp hay không
+    const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
+    if (!isMatch) {
+      throw new BadRequestException('Mật khẩu hiện tại chưa đúng rồi nè! ❌');
+    }
+
+    // Tiến hành băm mật khẩu mới
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
+
+    // Cập nhật lên DB
+    await this.userService.updateUser(userId, {
+      password: hashedNewPassword,
+    } as any);
+
+    return {
+      success: true,
+      message: 'Cập nhật mật khẩu mới thành công rùi nhé! 🥰',
     };
   }
 }

@@ -22,6 +22,8 @@ export class MailProcessor {
   @Process('send-activation-email')
   async handleSendMail(job: Job<{ email: string; token: string }>) {
     const { email, token } = job.data;
+    const from = '"Moment U Payment" <onboarding@resend.dev>';
+    let to = 'voquangluu997@gmail.com';
 
     // 🚀 Nhúng thẳng URL từ biến môi trường của bạn
     const baseUrl = process.env.APP_BASE_URL || 'http://192.168.13.125:8001';
@@ -29,8 +31,8 @@ export class MailProcessor {
 
     try {
       await this.transporter.sendMail({
-        from: '"Moment U Payment" <onboarding@resend.dev>', ////todo Thay bằng tên miền khi chuẩn bị up lên prod
-        to: 'voquangluu997@gmail.com', //todo Thay bằng email thực tế của user(email)
+        from: from, ////todo Thay bằng tên miền khi chuẩn bị up lên prod
+        to: to, //todo Thay bằng email thực tế của user(email)
         subject: '✨ Activate your Moment U Payment account, yayyy! ✨',
         // 🌸 CẬP NHẬT: Giao diện và nội dung tiếng Anh siêu dễ thương kèm nhắc nhở 30 ngày
         html: `
@@ -85,5 +87,30 @@ export class MailProcessor {
       console.error('❌ Resend SMTP connection or delivery failed:', error);
       throw error;
     }
+  }
+  
+  @Process('send-reset-password-email')
+  async handleSendResetPassword(job: Job<{ email: string; otp: string }>) {
+    const { email, otp } = job.data;
+    const from = '"Moment U Payment" <onboarding@resend.dev>';
+    let to = 'voquangluu997@gmail.com';
+
+    await this.transporter.sendMail({
+      from: from,
+      to: email, // ✨ ĐÃ SỬA: Dùng email từ job.data
+      subject: '🔑 Your Security Code for Moment U Payment',
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
+          <h2>Hello there!</h2>
+          <p>Someone requested to reset your password. If it was you, please use this code:</p>
+          <div style="font-size: 32px; font-weight: bold; color: #E91E63; text-align: center; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p>This code will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    console.log(`✉️ Reset password OTP sent to: ${email}`);
   }
 }

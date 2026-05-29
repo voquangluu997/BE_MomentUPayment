@@ -13,6 +13,9 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -62,17 +65,8 @@ export class AuthController {
     summary: 'Lấy thông tin chi tiết của người dùng đang đăng nhập',
   })
   async getProfile(@Req() req: any) {
-    // Controller vẫn xử lý lấy thông tin từ request, không cần Service
-    const user = req.user;
-    return {
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        isEmailVerified: user.isEmailVerified,
-      },
-    };
+    // ✨ ĐÃ SỬA: Chuyển toàn bộ logic xử lý data payload về cho Service đảm nhận
+    return this.authService.getProfile(req.user);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -83,5 +77,29 @@ export class AuthController {
   })
   async resendVerification(@Req() req: any) {
     return this.authService.resendVerification(req.user.id);
+  }
+
+  // =========================================================================
+  // ✨ THÊM MỚI: 3 API PHỤC VỤ QUÊN & ĐỔI MẬT KHẨU KHỚP VỚI FLUTTER FRONTEND
+  // =========================================================================
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Yêu cầu gửi mã OTP khôi phục mật khẩu qua Email' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Đặt lại mật khẩu mới bằng mã OTP xác thực' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post('update-password')
+  @ApiOperation({ summary: 'Đổi mật khẩu mới khi người dùng đang đăng nhập' })
+  async updatePassword(@Req() req: any, @Body() dto: UpdatePasswordDto) {
+    return this.authService.updatePassword(req.user.id, dto);
   }
 }

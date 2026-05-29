@@ -24,6 +24,8 @@ model User {
   fcmToken            String?
   language            String         @default("vi")
   isFirstLogin        Boolean       @default(true)
+  resetPasswordOtp     String?
+  resetPasswordExpires DateTime?
   
   // 🔑 Cài đặt thông báo (Opt-in / Opt-out)
   notiBudgetAlerts    Boolean        @default(true)
