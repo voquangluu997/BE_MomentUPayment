@@ -128,7 +128,7 @@ export class TransactionService {
 
     try {
       const groups = await this.prisma.transaction.groupBy({
-        by: ['category', 'emoji'],
+        by: ['category'], // Chỉ group duy nhất theo category
         where: {
           userId: userId,
           spentAt: {
@@ -139,12 +139,16 @@ export class TransactionService {
         _sum: {
           amount: true,
         },
+        _max: {
+          emoji: true, // Lấy emoji bất kỳ trong các record của category này
+        },
       });
 
-      // Format lại và sắp xếp để category nào tốn nhiều tiền nhất lên đầu
+      // Format lại dữ liệu
       const formattedData = groups.map((item) => ({
         category: item.category,
-        emoji: item.emoji || '📝',
+        // Dùng emoji từ _max đã lấy được
+        emoji: item._max.emoji || '📝',
         totalAmount: item._sum.amount || 0,
       }));
 
