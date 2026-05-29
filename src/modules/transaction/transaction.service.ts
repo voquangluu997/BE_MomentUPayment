@@ -107,20 +107,24 @@ export class TransactionService {
   }
 
   /**
-   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục của tháng hiện tại
+   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục (Hỗ trợ lọc theo ngày)
    */
-  async getAnalytics(userId: string) {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
+  async getAnalytics(userId: string, startDate?: string, endDate?: string) {
+    let start: Date;
+    let end: Date;
+
+    // Nếu Client có gửi ngày thì dùng, không thì lấy mặc định tháng hiện tại
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      start.setHours(0, 0, 0, 0); // Lấy từ đầu ngày
+
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // Lấy đến cuối ngày
+    } else {
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
 
     try {
       const groups = await this.prisma.transaction.groupBy({
@@ -128,8 +132,8 @@ export class TransactionService {
         where: {
           userId: userId,
           spentAt: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: start,
+            lte: end,
           },
         },
         _sum: {
@@ -137,11 +141,14 @@ export class TransactionService {
         },
       });
 
-      return groups.map((item) => ({
+      // Format lại và sắp xếp để category nào tốn nhiều tiền nhất lên đầu
+      const formattedData = groups.map((item) => ({
         category: item.category,
         emoji: item.emoji || '📝',
         totalAmount: item._sum.amount || 0,
       }));
+
+      return formattedData.sort((a, b) => b.totalAmount - a.totalAmount);
     } catch (error) {
       this.logger.error('Failed to generate analytics', error);
       throw new InternalServerErrorException(

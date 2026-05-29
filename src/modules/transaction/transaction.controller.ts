@@ -81,12 +81,22 @@ export class TransactionController {
 
   @Get('analytics')
   @ApiOperation({ summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục' })
-  async getAnalytics(@Req() req: any) {
+  @ApiQuery({ name: 'startDate', required: false, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'YYYY-MM-DD' })
+  async getAnalytics(
+    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     const userId = req.user?.id;
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
-    return await this.transactionService.getAnalytics(userId);
+    return await this.transactionService.getAnalytics(
+      userId,
+      startDate,
+      endDate,
+    );
   }
 
   // 🔑 HÀM MỚI: CẬP NHẬT GIAO DỊCH
