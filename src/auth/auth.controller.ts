@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -65,7 +66,6 @@ export class AuthController {
     summary: 'Lấy thông tin chi tiết của người dùng đang đăng nhập',
   })
   async getProfile(@Req() req: any) {
-    // ✨ ĐÃ SỬA: Chuyển toàn bộ logic xử lý data payload về cho Service đảm nhận
     return this.authService.getProfile(req.user);
   }
 
@@ -78,10 +78,6 @@ export class AuthController {
   async resendVerification(@Req() req: any) {
     return this.authService.resendVerification(req.user.id);
   }
-
-  // =========================================================================
-  // ✨ THÊM MỚI: 3 API PHỤC VỤ QUÊN & ĐỔI MẬT KHẨU KHỚP VỚI FLUTTER FRONTEND
-  // =========================================================================
 
   @Post('forgot-password')
   @ApiOperation({ summary: 'Yêu cầu gửi mã OTP khôi phục mật khẩu qua Email' })
@@ -101,5 +97,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Đổi mật khẩu mới khi người dùng đang đăng nhập' })
   async updatePassword(@Req() req: any, @Body() dto: UpdatePasswordDto) {
     return this.authService.updatePassword(req.user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post('update-profile')
+  async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.user.id, dto);
   }
 }

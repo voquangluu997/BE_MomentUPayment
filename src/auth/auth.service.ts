@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -58,7 +59,10 @@ export class AuthService {
       message: 'Registration successful! Verification email sent.',
       backend_jwt_token: backendToken,
       user: {
+        id: newUser.id,
         email: newUser.email,
+        name: newUser.name,
+        avatar: newUser.avatar,
         isEmailVerified: newUser.isEmailVerified,
       },
     };
@@ -130,7 +134,10 @@ export class AuthService {
       success: true,
       backend_jwt_token: backendToken,
       user: {
+        id: user.id,
         email: user.email,
+        name: user.name,
+        avatar: user.avatar,
         isEmailVerified: user.isEmailVerified,
       },
     };
@@ -173,7 +180,10 @@ export class AuthService {
       message: 'Google login authenticated successfully.',
       backend_jwt_token: backendToken,
       user: {
+        id: user.id,
         email: user.email,
+        name: user.name,
+        avatar: user.avatar,
         isEmailVerified: user.isEmailVerified,
       },
     };
@@ -250,45 +260,49 @@ export class AuthService {
   }
 
   // =========================================================================
-  // 6. ✨ ĐÃ CHUYỂN: LẤY THÔNG TIN CHI TIẾT USER (GET PROFILE)
+  // 6. LẤY THÔNG TIN CHI TIẾT USER (GET PROFILE) - ĐÃ SỬA GỌI DB THAY VÌ TOKEN PAYLOAD
   // =========================================================================
-  async getProfile(user: any) {
+  async getProfile(userPayload: any) {
+    // Luôn truy vấn thẳng vào database bằng ID từ Token để thông tin Name và Avatar luôn mới nhất
+    const dbUser = await this.userService.findById(
+      userPayload.id || userPayload.userId,
+    );
+    if (!dbUser) {
+      throw new BadRequestException('User profile not found.');
+    }
+
     return {
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        isEmailVerified: user.isEmailVerified,
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name,
+        avatar: dbUser.avatar, // Đã bổ sung trường avatar để đồng bộ với Flutter
+        isEmailVerified: dbUser.isEmailVerified,
       },
     };
   }
 
   // =========================================================================
-  // 7. ✨ THÊM MỚI: YÊU CẦU QUÊN MẬT KHẨU (FORGOT PASSWORD)
+  // 7. YÊU CẦU QUÊN MẬT KHẨU (FORGOT PASSWORD)
   // =========================================================================
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.userService.findByEmail(dto.email);
-    console.log("u: ", user);
+    console.log('u: ', user);
     if (!user) {
-      // Để bảo mật hệ thống tránh dò quét Email, bạn có thể trả về success luôn,
-      // hoặc bắn lỗi trực tiếp tuỳ nhu cầu trải nghiệm người dùng:
       throw new BadRequestException(
         'Email này chưa được đăng ký tài khoản rùi! 😢',
       );
     }
 
-    // Tạo mã OTP 6 số ngẫu nhiên
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // Hết hạn sau 15 phút
+    const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Cập nhật thông tin OTP vào database thông qua UserService
     await this.userService.updateUser(user.id, {
       resetPasswordOtp: otp,
       resetPasswordExpires: otpExpires,
     } as any);
 
-    // Đẩy nhiệm vụ gửi Email khôi phục vào hàng đợi Bull Queue
     await this.mailQueue.add('send-reset-password-email', {
       email: user.email,
       otp: otp,
@@ -301,7 +315,7 @@ export class AuthService {
   }
 
   // =========================================================================
-  // 8. ✨ THÊM MỚI: ĐẶT LẠI MẬT KHẨU BẰNG OTP (RESET PASSWORD WITH OTP)
+  // 8. ĐẶT LẠI MẬT KHẨU BẰNG OTP (RESET PASSWORD WITH OTP)
   // =========================================================================
   async resetPassword(dto: ResetPasswordDto) {
     const user = await this.userService.findByEmail(dto.email);
@@ -312,7 +326,6 @@ export class AuthService {
       );
     }
 
-    // Kiểm tra tính hợp lệ và thời gian hết hạn của OTP
     const isOtpValid = user['resetPasswordOtp'] === dto.otp;
     const isOtpExpired = new Date(user['resetPasswordExpires']) < new Date();
 
@@ -322,11 +335,9 @@ export class AuthService {
       );
     }
 
-    // Hash mật khẩu mới của người dùng
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
 
-    // Cập nhật mật khẩu mới và xóa sạch dữ liệu OTP thừa trong DB
     await this.userService.updateUser(user.id, {
       password: hashedNewPassword,
       resetPasswordOtp: null,
@@ -340,7 +351,7 @@ export class AuthService {
   }
 
   // =========================================================================
-  // 9. ✨ THÊM MỚI: ĐỔI MẬT KHẨU KHI ĐANG ĐĂNG NHẬP (UPDATE PASSWORD)
+  // 9. ĐỔI MẬT KHẨU KHI ĐANG ĐĂNG NHẬP (UPDATE PASSWORD)
   // =========================================================================
   async updatePassword(userId: string, dto: UpdatePasswordDto) {
     const user = await this.userService.findById(userId);
@@ -350,17 +361,14 @@ export class AuthService {
       );
     }
 
-    // Kiểm tra mật khẩu hiện tại xem khớp hay không
     const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
     if (!isMatch) {
       throw new BadRequestException('Mật khẩu hiện tại chưa đúng rồi nè! ❌');
     }
 
-    // Tiến hành băm mật khẩu mới
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
 
-    // Cập nhật lên DB
     await this.userService.updateUser(userId, {
       password: hashedNewPassword,
     } as any);
@@ -368,6 +376,36 @@ export class AuthService {
     return {
       success: true,
       message: 'Cập nhật mật khẩu mới thành công rùi nhé! 🥰',
+    };
+  }
+
+  // =========================================================================
+  // 10. CẬP NHẬT HỒ SƠ (UPDATE PROFILE)
+  // =========================================================================
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const updateData: any = {};
+
+    if (dto.name !== undefined) {
+      updateData.name = dto.name;
+    }
+
+    if (dto.avatar !== undefined) {
+      updateData.avatar = dto.avatar;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('No fields provided for update');
+    }
+
+    const updatedUser = await this.userService.updateUser(userId, updateData);
+
+    return {
+      success: true,
+      message: 'Profile updated!',
+      user: {
+        name: updatedUser.name,
+        avatar: updatedUser.avatar,
+      },
     };
   }
 }
