@@ -13,6 +13,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BudgetCronService } from './modules/firebase/budget-cron.service';
 import { FirebaseNotificationModule } from './modules/firebase/firebase-notification.module';
 import { NotificationModule } from './modules/notifications/notification.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -41,7 +42,8 @@ import { NotificationModule } from './modules/notifications/notification.module'
     ReportsModule,
     UserModule,
     NotificationModule,
-    FirebaseNotificationModule
+    FirebaseNotificationModule,
+    HealthModule
   ],
   providers: [BudgetCronService],
 })

@@ -22,7 +22,7 @@ export class MailProcessor {
   @Process('send-activation-email')
   async handleSendMail(job: Job<{ email: string; token: string }>) {
     const { email, token } = job.data;
-    const from = '"Moment U Payment" <onboarding@resend.dev>';
+    const from = '"Moments U Payment" <onboarding@resend.dev>';
     let to = 'voquangluu997@gmail.com';
 
     // 🚀 Nhúng thẳng URL từ biến môi trường của bạn
@@ -33,7 +33,7 @@ export class MailProcessor {
       await this.transporter.sendMail({
         from: from, ////todo Thay bằng tên miền khi chuẩn bị up lên prod
         to: to, //todo Thay bằng email thực tế của user(email)
-        subject: '✨ Activate your Moment U Payment account, yayyy! ✨',
+        subject: '✨ Activate your Moments U Payment account, yayyy! ✨',
         // 🌸 CẬP NHẬT: Giao diện và nội dung tiếng Anh siêu dễ thương kèm nhắc nhở 30 ngày
         html: `
           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 550px; margin: 0 auto; padding: 30px; border: 2px dashed #FFCDD2; border-radius: 24px; background-color: #FFFDFD; color: #4E342E;">
@@ -41,12 +41,12 @@ export class MailProcessor {
             <div style="text-align: center; margin-bottom: 25px;">
               <span style="font-size: 50px;">🎉</span>
               <h2 style="color: #E91E63; margin-top: 10px; font-weight: 700; letter-spacing: -0.5px;">
-                Welcome to <br/>Moment U Payment! 🥰
+                Welcome to <br/>Moments U Payment! 🥰
               </h2>
             </div>
 
             <div style="font-size: 15px; line-height: 1.6; color: #5D4037;">
-              <p>Hi there, lovely friend! We are absolutely thrilled to have you join <b>Moment U Payment</b> to capture and manage your wonderful spending moments! ✨</p>
+              <p>Hi there, lovely friend! We are absolutely thrilled to have you join <b>Moments U Payment</b> to capture and manage your wonderful spending moments! ✨</p>
               
               <p>To keep your account super safe and unlock all of our adorable, handy features, could you please click the pretty pink button right down here?</p>
             </div>
@@ -72,7 +72,7 @@ export class MailProcessor {
             </div>
 
             <div style="text-align: center; margin-top: 35px; font-size: 12px; color: #BCAAA4;">
-              <p>Sending you tons of love from the <b>Moment U Payment</b> team 💖</p>
+              <p>Sending you tons of love from the <b>Moments U Payment</b> team 💖</p>
               <p style="font-size: 11px;">This is an automated email, so no need to reply back to us, okay?</p>
             </div>
 
@@ -92,13 +92,13 @@ export class MailProcessor {
   @Process('send-reset-password-email')
   async handleSendResetPassword(job: Job<{ email: string; otp: string }>) {
     const { email, otp } = job.data;
-    const from = '"Moment U Payment" <onboarding@resend.dev>';
+    const from = '"Moments U Payment" <onboarding@resend.dev>';
     let to = 'voquangluu997@gmail.com';
 
     await this.transporter.sendMail({
       from: from,
       to: email, // ✨ ĐÃ SỬA: Dùng email từ job.data
-      subject: '🔑 Your Security Code for Moment U Payment',
+      subject: '🔑 Your Security Code for Moments U Payment',
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
           <h2>Hello there!</h2>

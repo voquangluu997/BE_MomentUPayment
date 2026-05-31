@@ -227,7 +227,7 @@ export class AuthService {
     return `
       <div style="font-family: Arial, sans-serif; text-align: center; margin-top: 100px;">
         <h1 style="color: #3949AB;">🎉 Account Activated Successfully!</h1>
-        <p style="color: #4B5563; font-size: 16px;">Your email has been verified. You can now return to your Moment U Payment app.</p>
+        <p style="color: #4B5563; font-size: 16px;">Your email has been verified. You can now return to your Moments U Payment app.</p>
       </div>
     `;
   }

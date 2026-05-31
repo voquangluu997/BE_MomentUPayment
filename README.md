@@ -97,7 +97,7 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
-# BE_MomentUPayment
+# BE_MomentsUPayment
 
 BullBoard giám sát Queue: http://localhost:8001/admin/queues
 add x-admin-key header to access queue

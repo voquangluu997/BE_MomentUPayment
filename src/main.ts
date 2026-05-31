@@ -31,9 +31,9 @@ async function bootstrap() {
   app.enableCors();
 
   const config = new DocumentBuilder()
-    .setTitle('Moment U Payment API')
+    .setTitle('Moments U Payment API')
     .setDescription(
-      'Tài liệu API tích hợp hệ thống ví điện tử Moment U Payment',
+      'Tài liệu API tích hợp hệ thống ví điện tử Moments U Payment',
     )
     .setVersion('1.0')
     .addBearerAuth(

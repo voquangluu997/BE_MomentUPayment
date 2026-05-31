@@ -18,7 +18,7 @@ export class BudgetCronService {
   @Cron(CronExpression.EVERY_DAY_AT_NOON)
   async handleSurvivalBudgetAlert() {
     this.logger.log(
-      '🚀 [Moment u Payment] Tiến trình quét ví sinh tồn bắt đầu...',
+      '🚀 [Moments u Payment] Tiến trình quét ví sinh tồn bắt đầu...',
     );
 
     try {
