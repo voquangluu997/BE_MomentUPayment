@@ -9,7 +9,7 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "src",
+    "rootDir": "src", 
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
@@ -18,14 +18,7 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": true,
+    // ✨ Bổ sung hoặc cập nhật mảng types ở đây:
     "types": ["node", "multer"]
-  },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "generated" 
-  ]
+  }
 }
