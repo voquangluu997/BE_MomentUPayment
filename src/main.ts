@@ -28,7 +28,13 @@ async function bootstrap() {
   );
   // ✨ Cấu hình mở cổng thư mục tĩnh công khai
   app.useStaticAssets(join(__dirname, '..', 'public'));
-  app.enableCors();
+  app.enableCors({
+    origin: [
+      'http://localhost:8001', // Cổng chạy Local của chính Backend (nếu cần test)
+      'http://localhost:10000', // Cổng chạy Local của Flutter Web khi dev
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Moments U Payment API')
