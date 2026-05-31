@@ -18,10 +18,8 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": true,
-    // ✨ Bổ sung hoặc cập nhật mảng types ở đây:
     "types": ["node", "multer"]
   },
-  // ✨ THÊM 2 MỤC NÀY VÀO DƯỚI CÙNG FILE TSCONFIG.JSON
   "include": [
     "src/**/*"
   ],
