@@ -27,7 +27,7 @@ export class AuthService {
   ) {}
 
   // =========================================================================
-  // 1. ĐĂNG KÝ (REGISTER)
+  // 1. ĐĂNG KÝ (REGISTER) - ĐÃ THÊM CƠ CHẾ ROLLBACK KHI LỖI MAIL QUEUE
   // =========================================================================
   async register(dto: RegisterDto) {
     const existingUser = await this.userService.findByEmail(dto.email);
@@ -39,6 +39,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
+    // Bước 1: Khởi tạo tài khoản người dùng trong DB trước
     const newUser = await this.userService.createUser({
       email: dto.email,
       password: hashedPassword,
@@ -47,11 +48,35 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    await this.mailQueue.add('send-activation-email', {
-      email: newUser.email,
-      token: verificationToken,
-    });
+    // Bước 2: Đẩy tác vụ gửi Mail vào hàng đợi Bull Queue
+    try {
+      await this.mailQueue.add('send-activation-email', {
+        email: newUser.email,
+        token: verificationToken,
+      });
+    } catch (mailError) {
+      console.error('❌ Lỗi hệ thống hàng đợi gửi mail:', mailError);
 
+      // 🛠️ THỰC HIỆN ROLLBACK: Xóa tài khoản vừa tạo để giải phóng Email
+      try {
+        await this.prisma.user.delete({
+          where: { id: newUser.id },
+        });
+        console.log(`🔄 Rollback thành công: Đã xóa user ID ${newUser.id}`);
+      } catch (dbError) {
+        console.error(
+          '🚨 Lỗi nghiêm trọng: Không thể xóa user khi thực hiện rollback!',
+          dbError,
+        );
+      }
+
+      // Ném ra lỗi thông báo cho client biết đăng ký thất bại
+      throw new BadRequestException(
+        'Đăng ký tài khoản không thành công do hệ thống xác thực mail gặp sự cố. Vui lòng thử lại sau! 😢',
+      );
+    }
+
+    // Bước 3: Nếu mọi thứ suôn sẻ, tiến hành ký Token và trả về kết quả thành công
     const backendToken = this.jwtService.sign({ userId: newUser.id });
 
     return {
@@ -260,10 +285,9 @@ export class AuthService {
   }
 
   // =========================================================================
-  // 6. LẤY THÔNG TIN CHI TIẾT USER (GET PROFILE) - ĐÃ SỬA GỌI DB THAY VÌ TOKEN PAYLOAD
+  // 6. LẤY THÔNG TIN CHI TIẾT USER (GET PROFILE)
   // =========================================================================
   async getProfile(userPayload: any) {
-    // Luôn truy vấn thẳng vào database bằng ID từ Token để thông tin Name và Avatar luôn mới nhất
     const dbUser = await this.userService.findById(
       userPayload.id || userPayload.userId,
     );
@@ -277,7 +301,7 @@ export class AuthService {
         id: dbUser.id,
         email: dbUser.email,
         name: dbUser.name,
-        avatar: dbUser.avatar, // Đã bổ sung trường avatar để đồng bộ với Flutter
+        avatar: dbUser.avatar,
         isEmailVerified: dbUser.isEmailVerified,
       },
     };
@@ -288,7 +312,6 @@ export class AuthService {
   // =========================================================================
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.userService.findByEmail(dto.email);
-    console.log('u: ', user);
     if (!user) {
       throw new BadRequestException(
         'Email này chưa được đăng ký tài khoản rùi! 😢',

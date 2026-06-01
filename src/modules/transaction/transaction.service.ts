@@ -32,7 +32,6 @@ export class TransactionService {
           category: dto.category,
           emoji: dto.emoji ?? '🌸',
           userId: userId,
-          // ✨ Cập nhật: Lưu ngày được chọn hoặc lấy ngày hiện tại nếu không truyền
           spentAt: dto.spentAt ? new Date(dto.spentAt) : new Date(),
         },
       });
@@ -56,12 +55,8 @@ export class TransactionService {
       const skipRecords = (page - 1) * limit;
 
       return await this.prisma.transaction.findMany({
-        where: {
-          userId: userId,
-        },
-        orderBy: {
-          spentAt: 'desc',
-        },
+        where: { userId: userId },
+        orderBy: { spentAt: 'desc' },
         skip: skipRecords,
         take: limit,
       });
@@ -107,7 +102,7 @@ export class TransactionService {
   }
 
   /**
-   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục (Hỗ trợ lọc theo ngày)
+   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục
    */
   async getAnalytics(userId: string, startDate?: string, endDate?: string) {
     let start: Date;
@@ -130,17 +125,10 @@ export class TransactionService {
         by: ['category'],
         where: {
           userId: userId,
-          spentAt: {
-            gte: start,
-            lte: end,
-          },
+          spentAt: { gte: start, lte: end },
         },
-        _sum: {
-          amount: true,
-        },
-        _max: {
-          emoji: true,
-        },
+        _sum: { amount: true },
+        _max: { emoji: true },
       });
 
       const formattedData = groups.map((item) => ({
@@ -159,14 +147,11 @@ export class TransactionService {
   }
 
   /**
-   * ✨ Cập nhật giao dịch (Đã bổ sung update spentAt)
+   * ✨ Cập nhật giao dịch
    */
   async update(id: number, userId: string, updateDto: UpdateTransactionDto) {
     const transaction = await this.prisma.transaction.findFirst({
-      where: {
-        id: id,
-        userId: userId,
-      },
+      where: { id: id, userId: userId },
     });
 
     if (!transaction) {
@@ -183,7 +168,6 @@ export class TransactionService {
         note: updateDto.note ?? transaction.note,
         emoji: updateDto.emoji ?? transaction.emoji,
         imageUrl: updateDto.imageUrl ?? transaction.imageUrl,
-        // ✨ Cập nhật: Nếu có truyền spentAt mới thì cập nhật, không thì giữ giá trị cũ
         spentAt: updateDto.spentAt
           ? new Date(updateDto.spentAt)
           : transaction.spentAt,
@@ -191,6 +175,9 @@ export class TransactionService {
     });
   }
 
+  /**
+   * 🚨 Kiểm tra ngân sách và tạo thông báo chuẩn đa ngôn ngữ
+   */
   private async checkBudgetAndNotify(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -214,9 +201,11 @@ export class TransactionService {
       (sum, tx) => sum + tx.amount,
       0,
     );
-
     const percentage = (totalSpent / user.budgetLimit) * 100;
     const roundedPercent = percentage.toFixed(0);
+
+    // ✨ GIẢI PHÁP: Thay thế chữ cứng thành L10n Key dùng chung
+    const budgetNameKey = 'monthBudget';
 
     if (percentage >= 100) {
       try {
@@ -226,7 +215,7 @@ export class TransactionService {
             type: 'budget_100',
             titleKey: 'notiBudgetExceededTitle',
             bodyKey: 'notiBudgetExceededBody',
-            arguments: ['Ngân sách tháng', roundedPercent],
+            arguments: [budgetNameKey, roundedPercent], // Gửi key qua Flutter
           },
         });
       } catch (err) {
@@ -234,7 +223,7 @@ export class TransactionService {
       }
 
       await this.firebaseService.sendLocalizedNotification(userId, 'AM_QUY', {
-        budgetName: 'Ngân sách tháng',
+        budgetName: budgetNameKey, // Gửi key qua FCM
         percentage: roundedPercent,
       });
     } else if (percentage >= 80) {
@@ -245,7 +234,7 @@ export class TransactionService {
             type: 'budget_80',
             titleKey: 'notiBudgetWarningTitle',
             bodyKey: 'notiBudgetWarningBody',
-            arguments: ['Ngân sách tháng', roundedPercent],
+            arguments: [budgetNameKey, roundedPercent], // Gửi key qua Flutter
           },
         });
       } catch (err) {
@@ -253,7 +242,7 @@ export class TransactionService {
       }
 
       await this.firebaseService.sendLocalizedNotification(userId, 'THO_OXY', {
-        budgetName: 'Ngân sách tháng',
+        budgetName: budgetNameKey, // Gửi key qua FCM
         percentage: roundedPercent,
       });
     }
