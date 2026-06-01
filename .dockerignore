@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+build
+
+# Testing
+test
+coverage
+.jest
+
+# IDE & Editor
+.vscode
+.idea
+*.swp
+*.swo
+*.swn
+.DS_Store
+.env.local
+.env.*.local
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Development
+.env
+.env.development
+.env.development.local
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Prisma
+prisma/migrations
+prisma/dev.db*
+.prisma
+
+# Others
+README.md
+LICENSE
+CHANGELOG.md
+.prettierrc
+.eslintrc
+tsconfig.json
+jest.config.js

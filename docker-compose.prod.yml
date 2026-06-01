@@ -1,0 +1,153 @@
+# ============================================
+# Production Docker Compose Configuration
+# ============================================
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+#
+# ⚠️ NOTES:
+# 1. Ensure .env file with production values exists
+# 2. Use managed database services (Supabase, AWS RDS) instead of local PostgreSQL
+# 3. Use managed Redis service (Redis Cloud, AWS ElastiCache) instead of local Redis
+# 4. Ensure volumes are backed up regularly
+# 5. Use reverse proxy (Nginx) in front of backend
+# ============================================
+
+version: '3.9'
+
+services:
+  # ============================================
+  # NestJS Backend - Production Only
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      cache_from:
+        - node:20-alpine
+    container_name: moment_u_backend_prod
+    image: moment_u_backend:latest
+    environment:
+      # Database - Use External Managed Service (e.g., Supabase, AWS RDS)
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+
+      # Server
+      PORT: ${PORT}
+      NODE_ENV: production
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Redis - Use External Managed Service
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # External Services
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+
+      # Mail Service
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASS: ${MAIL_PASS}
+
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_MAIL_PASS: ${GOOGLE_MAIL_PASS}
+
+      # Admin
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
+
+      # API Base URL
+      API_BASE_URL: ${API_BASE_URL}
+
+    ports:
+      - '${PORT}:8001'
+
+    restart: on-failure:5
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '5'
+        labels: 'service=backend,environment=production'
+
+    # Health check
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--quiet',
+          '--tries=1',
+          '--spider',
+          'http://localhost:8001/health',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - moment_network
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only filesystem
+    read_only: false # Set to true if no file writes needed
+
+networks:
+  moment_network:
+    driver: bridge
+
+# ============================================
+# PRODUCTION DEPLOYMENT CHECKLIST:
+# ============================================
+# ✅ Environment Variables:
+#    - Change JWT_SECRET to strong random value
+#    - Use production database URL (Supabase, AWS RDS)
+#    - Use production Redis service (Redis Cloud, AWS ElastiCache)
+#    - Verify all API keys are correct
+#
+# ✅ Database:
+#    - Run migrations: docker-compose -f docker-compose.prod.yml exec backend npm run migrate:deploy
+#    - Backup before deployment
+#    - Enable automatic backups
+#
+# ✅ Security:
+#    - Set NODE_ENV=production
+#    - Use HTTPS with valid SSL certificate
+#    - Enable firewall rules
+#    - Use strong admin secret key
+#    - Rotate JWT secret regularly
+#
+# ✅ Monitoring:
+#    - Set up logging (CloudWatch, ELK Stack)
+#    - Configure health checks
+#    - Set up alerting
+#    - Monitor CPU & memory usage
+#
+# ✅ Reverse Proxy (Nginx):
+#    - Set up SSL/TLS termination
+#    - Configure rate limiting
+#    - Add security headers
+#    - Enable gzip compression
+#
+# ============================================
