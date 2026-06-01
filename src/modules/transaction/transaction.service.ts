@@ -24,7 +24,6 @@ export class TransactionService {
    */
   async create(userId: string, dto: CreateTransactionDto) {
     try {
-      // 🛠️ Thêm await để đảm bảo giao dịch lưu vào DB xong trước khi check budget
       const newTransaction = await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
@@ -33,10 +32,11 @@ export class TransactionService {
           category: dto.category,
           emoji: dto.emoji ?? '🌸',
           userId: userId,
+          // ✨ Cập nhật: Lưu ngày được chọn hoặc lấy ngày hiện tại nếu không truyền
+          spentAt: dto.spentAt ? new Date(dto.spentAt) : new Date(),
         },
       });
 
-      // 🛠️ Thêm await để chạy đồng bộ logic tính toán
       await this.checkBudgetAndNotify(userId);
 
       return newTransaction;
@@ -49,7 +49,7 @@ export class TransactionService {
   }
 
   /**
-   * ✨ CẬP NHẬT: Lấy lịch sử chi tiêu kèm phân trang (Lazy Load)
+   * ✨ Lấy lịch sử chi tiêu kèm phân trang (Lazy Load)
    */
   async findAllByUser(userId: string, page: number = 1, limit: number = 15) {
     try {
@@ -113,13 +113,12 @@ export class TransactionService {
     let start: Date;
     let end: Date;
 
-    // Nếu Client có gửi ngày thì dùng, không thì lấy mặc định tháng hiện tại
     if (startDate && endDate) {
       start = new Date(startDate);
-      start.setHours(0, 0, 0, 0); // Lấy từ đầu ngày
+      start.setHours(0, 0, 0, 0);
 
       end = new Date(endDate);
-      end.setHours(23, 59, 59, 999); // Lấy đến cuối ngày
+      end.setHours(23, 59, 59, 999);
     } else {
       const now = new Date();
       start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -128,7 +127,7 @@ export class TransactionService {
 
     try {
       const groups = await this.prisma.transaction.groupBy({
-        by: ['category'], // Chỉ group duy nhất theo category
+        by: ['category'],
         where: {
           userId: userId,
           spentAt: {
@@ -140,14 +139,12 @@ export class TransactionService {
           amount: true,
         },
         _max: {
-          emoji: true, // Lấy emoji bất kỳ trong các record của category này
+          emoji: true,
         },
       });
 
-      // Format lại dữ liệu
       const formattedData = groups.map((item) => ({
         category: item.category,
-        // Dùng emoji từ _max đã lấy được
         emoji: item._max.emoji || '📝',
         totalAmount: item._sum.amount || 0,
       }));
@@ -161,6 +158,9 @@ export class TransactionService {
     }
   }
 
+  /**
+   * ✨ Cập nhật giao dịch (Đã bổ sung update spentAt)
+   */
   async update(id: number, userId: string, updateDto: UpdateTransactionDto) {
     const transaction = await this.prisma.transaction.findFirst({
       where: {
@@ -183,13 +183,14 @@ export class TransactionService {
         note: updateDto.note ?? transaction.note,
         emoji: updateDto.emoji ?? transaction.emoji,
         imageUrl: updateDto.imageUrl ?? transaction.imageUrl,
+        // ✨ Cập nhật: Nếu có truyền spentAt mới thì cập nhật, không thì giữ giá trị cũ
+        spentAt: updateDto.spentAt
+          ? new Date(updateDto.spentAt)
+          : transaction.spentAt,
       },
     });
   }
 
-  // ==========================================
-  // 🔍 HÀM KIỂM TRA NGÂN SÁCH & BẮN THÔNG BÁO
-  // ==========================================
   private async checkBudgetAndNotify(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -217,7 +218,6 @@ export class TransactionService {
     const percentage = (totalSpent / user.budgetLimit) * 100;
     const roundedPercent = percentage.toFixed(0);
 
-    // 🌸 TẠO THÔNG BÁO IN-APP KHỚP VỚI CẤU TRÚC PRISMA CỦA AUTH SERVICE
     if (percentage >= 100) {
       try {
         await this.prisma.notification.create({
@@ -227,7 +227,6 @@ export class TransactionService {
             titleKey: 'notiBudgetExceededTitle',
             bodyKey: 'notiBudgetExceededBody',
             arguments: ['Ngân sách tháng', roundedPercent],
-            // isRead mặc định là false theo schema (nếu có)
           },
         });
       } catch (err) {

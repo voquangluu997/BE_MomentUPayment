@@ -42,4 +42,12 @@ export class CreateTransactionDto {
   @IsString({ message: 'Emoji phải là ký tự icon đáng yêu nha!' })
   @IsOptional()
   emoji?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ngày giờ thực hiện giao dịch (ISO String)',
+    example: '2026-06-01T11:22:59.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  spentAt?: string;
 }
