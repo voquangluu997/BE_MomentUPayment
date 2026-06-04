@@ -26,6 +26,7 @@ model User {
   isFirstLogin        Boolean       @default(true)
   resetPasswordOtp     String?
   resetPasswordExpires DateTime?
+  timezone             String?  @default("Asia/Ho_Chi_Minh")
   
   // 🔑 Cài đặt thông báo (Opt-in / Opt-out)
   notiBudgetAlerts    Boolean        @default(true)
