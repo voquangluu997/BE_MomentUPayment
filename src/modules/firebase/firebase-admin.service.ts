@@ -54,7 +54,7 @@ export class FirebaseAdminService {
         bodyKey: 'notiBudgetWarningBody',
       },
     },
-    // ✨ THÊM MỚI: Dữ liệu cho tổng kết tháng
+    // ✨ Dữ liệu cho tổng kết tháng
     MONTHLY_SUMMARY: {
       vi: {
         title: 'Báo cáo chi tiêu tháng {{month}} 📊',
@@ -97,7 +97,8 @@ export class FirebaseAdminService {
       return;
     }
 
-    // 1. Kiểm tra spam thông báo trong ngày (chỉ áp dụng cho cảnh báo ngân sách)
+    // 1. Kiểm tra spam thông báo trong ngày (🚀 CHỈ ĐỂ ĐÁNH DẤU CỜ, KHÔNG RETURN SỚM)
+    let isSpam = false;
     if (dictionaryItem.inApp.type.startsWith('budget')) {
       const existingNotification = await this.prisma.notification.findFirst({
         where: {
@@ -108,27 +109,16 @@ export class FirebaseAdminService {
       });
 
       if (existingNotification) {
+        isSpam = true;
         this.logger.log(
-          `⚠️ User ${userId} đã nhận báo động ${messageKey} hôm nay. Bỏ qua để tránh spam.`,
+          `⚠️ User ${userId} đã nhận báo động ${messageKey} hôm nay. Sẽ chặn PUSH Firebase nhưng vẫn lưu In-App.`,
         );
-        return;
       }
     }
 
     // 2. Lấy thông tin user
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
-
-    // Tôn trọng cài đặt user (Tắt thông báo)
-    if (
-      dictionaryItem.inApp.type.startsWith('budget') &&
-      user.notiBudgetAlerts === false
-    ) {
-      this.logger.log(
-        `🤫 User ${userId} đã tắt nhận thông báo chi tiêu. Hủy lệnh gửi.`,
-      );
-      return;
-    }
 
     // 3. Chuẩn bị biến động (arguments) cho App Flutter
     let args: string[] = [];
@@ -145,7 +135,7 @@ export class FirebaseAdminService {
     }
 
     // ==========================================
-    // 💾 LƯU DATABASE CHO IN-APP NOTIFICATION
+    // 💾 LƯU DATABASE CHO IN-APP NOTIFICATION (Luôn luôn chạy)
     // ==========================================
     try {
       await this.prisma.notification.create({
@@ -157,6 +147,9 @@ export class FirebaseAdminService {
           arguments: args,
         },
       });
+      this.logger.log(
+        `💾 Đã lưu thành công In-App Notification cho User: ${userId}`,
+      );
     } catch (dbError) {
       this.logger.error('❌ Lỗi khi lưu Notification vào DB:', dbError);
     }
@@ -164,9 +157,29 @@ export class FirebaseAdminService {
     // ==========================================
     // 📲 BẮN PUSH NOTIFICATION (FIREBASE)
     // ==========================================
+
+    // 🛑 Kiểm tra 1: Nếu dính spam -> Chặn không cho bắn Firebase tiếp
+    if (isSpam) {
+      this.logger.log(
+        `🤫 Hủy bắn PUSH Firebase tới User ${userId} để tránh spam màn hình khóa.`,
+      );
+      return;
+    }
+
+    // 🛑 Kiểm tra 2: Tôn trọng cài đặt cá nhân của user (Đã dời xuống đây để bảo toàn In-App)
+    if (
+      dictionaryItem.inApp.type.startsWith('budget') &&
+      user.notiBudgetAlerts === false
+    ) {
+      this.logger.log(
+        `🤫 User ${userId} đã tắt nhận thông báo chi tiêu qua điện thoại. Hủy lệnh gửi PUSH Firebase.`,
+      );
+      return;
+    }
+
     if (!user.fcmToken) {
       this.logger.log(
-        `⚠️ User ${userId} chưa có FCM Token. Đã lưu In-App thành công.`,
+        `⚠️ User ${userId} chưa có FCM Token. Bỏ qua bước bắn PUSH Firebase.`,
       );
       return;
     }
