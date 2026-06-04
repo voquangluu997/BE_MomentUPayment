@@ -18,7 +18,6 @@ export class FirebaseAdminService {
         title: 'The Beggar Era Begins! 💸',
         body: 'Congratulations, you just landed on... OVERSPENT! Time to survive on pure faith! 🦖',
       },
-      // Thông tin để lưu vào Database cho app Flutter tự dịch
       inApp: {
         type: 'budget_100',
         titleKey: 'notiBudgetExceededTitle',
@@ -55,6 +54,22 @@ export class FirebaseAdminService {
         bodyKey: 'notiBudgetWarningBody',
       },
     },
+    // ✨ THÊM MỚI: Dữ liệu cho tổng kết tháng
+    MONTHLY_SUMMARY: {
+      vi: {
+        title: 'Báo cáo chi tiêu tháng {{month}} 📊',
+        body: 'Tháng qua bạn tiêu hết {{total}}. {{topCategory}} {{emoji}} đang là "thủ phạm" đốt ví lớn nhất!',
+      },
+      en: {
+        title: 'Spending Report for Month {{month}} 📊',
+        body: 'You spent {{total}} last month. {{topCategory}} {{emoji}} is your biggest expense!',
+      },
+      inApp: {
+        type: 'monthly_summary',
+        titleKey: 'notiMonthlySummaryTitle',
+        bodyKey: 'notiMonthlySummaryBody',
+      },
+    },
   };
 
   /**
@@ -63,7 +78,15 @@ export class FirebaseAdminService {
   async sendLocalizedNotification(
     userId: string,
     messageKey: keyof typeof this.notificationDictionary,
-    data?: { budgetName?: string; percentage?: string; [key: string]: any }, // Chuẩn hóa tham số
+    data?: {
+      budgetName?: string;
+      percentage?: string;
+      month?: string;
+      total?: string;
+      topCategory?: string;
+      emoji?: string;
+      [key: string]: any;
+    },
   ) {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -74,27 +97,29 @@ export class FirebaseAdminService {
       return;
     }
 
-    // 1. Kiểm tra xem hôm nay đã spam user loại thông báo này chưa
-    const existingNotification = await this.prisma.notification.findFirst({
-      where: {
-        userId,
-        type: dictionaryItem.inApp.type, // Map chuẩn theo In-App type
-        createdAt: { gte: startOfToday },
-      },
-    });
+    // 1. Kiểm tra spam thông báo trong ngày (chỉ áp dụng cho cảnh báo ngân sách)
+    if (dictionaryItem.inApp.type.startsWith('budget')) {
+      const existingNotification = await this.prisma.notification.findFirst({
+        where: {
+          userId,
+          type: dictionaryItem.inApp.type,
+          createdAt: { gte: startOfToday },
+        },
+      });
 
-    if (existingNotification) {
-      this.logger.log(
-        `⚠️ User ${userId} đã nhận báo động ${messageKey} hôm nay. Bỏ qua để tránh spam.`,
-      );
-      return;
+      if (existingNotification) {
+        this.logger.log(
+          `⚠️ User ${userId} đã nhận báo động ${messageKey} hôm nay. Bỏ qua để tránh spam.`,
+        );
+        return;
+      }
     }
 
-    // 2. Lấy thông tin user và kiểm tra quyền gửi
+    // 2. Lấy thông tin user
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
 
-    // TÔN TRỌNG CÀI ĐẶT CỦA USER: Nếu user đã vào App và tắt cảnh báo ngân sách -> Bỏ qua
+    // Tôn trọng cài đặt user (Tắt thông báo)
     if (
       dictionaryItem.inApp.type.startsWith('budget') &&
       user.notiBudgetAlerts === false
@@ -106,13 +131,18 @@ export class FirebaseAdminService {
     }
 
     // 3. Chuẩn bị biến động (arguments) cho App Flutter
-    // Fallback mặc định nếu lúc gọi hàm bạn quên không truyền data
-    const args: string[] = [];
-    if (data?.budgetName) args.push(data.budgetName);
-    else args.push('Ví của bạn'); // Fallback tên ví
-
-    if (data?.percentage) args.push(data.percentage);
-    else args.push('80'); // Fallback số %
+    let args: string[] = [];
+    if (messageKey === 'MONTHLY_SUMMARY') {
+      args = [
+        data?.month || '',
+        data?.total || '0',
+        data?.topCategory || '',
+        data?.emoji || '',
+      ];
+    } else {
+      args.push(data?.budgetName || 'Ví của bạn');
+      args.push(data?.percentage || '80');
+    }
 
     // ==========================================
     // 💾 LƯU DATABASE CHO IN-APP NOTIFICATION
@@ -124,12 +154,11 @@ export class FirebaseAdminService {
           type: dictionaryItem.inApp.type,
           titleKey: dictionaryItem.inApp.titleKey,
           bodyKey: dictionaryItem.inApp.bodyKey,
-          arguments: args, // Prisma giờ đã nhận mảng string
+          arguments: args,
         },
       });
     } catch (dbError) {
       this.logger.error('❌ Lỗi khi lưu Notification vào DB:', dbError);
-      // Vẫn tiếp tục chạy để bắn Push cho dù DB lỗi
     }
 
     // ==========================================
@@ -137,7 +166,7 @@ export class FirebaseAdminService {
     // ==========================================
     if (!user.fcmToken) {
       this.logger.log(
-        `⚠️ User ${userId} chưa có thiết bị (FCM Token). Đã lưu In-App thành công.`,
+        `⚠️ User ${userId} chưa có FCM Token. Đã lưu In-App thành công.`,
       );
       return;
     }
@@ -145,16 +174,27 @@ export class FirebaseAdminService {
     const userLang = user.language === 'en' ? 'en' : 'vi';
     const translation = dictionaryItem[userLang];
 
+    // ✨ Parse các biến {{key}} trong title và body thành dữ liệu thực tế
+    let pushTitle = translation.title;
+    let pushBody = translation.body;
+
+    if (data) {
+      for (const [key, value] of Object.entries(data)) {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        pushTitle = pushTitle.replace(regex, String(value));
+        pushBody = pushBody.replace(regex, String(value));
+      }
+    }
+
     const payload: admin.messaging.Message = {
       token: user.fcmToken,
       notification: {
-        // FCM bắt buộc dùng text thật, không dùng Key
-        title: translation.title,
-        body: translation.body,
+        title: pushTitle,
+        body: pushBody,
       },
       data: {
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
-        ...data, // Nhét thêm data ẩn để Flutter handle khi user bấm vào
+        ...data, // Nhét thêm data ẩn
       },
       android: {
         priority: 'high',

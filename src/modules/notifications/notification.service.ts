@@ -22,7 +22,7 @@ export class NotificationService {
     return { count };
   }
 
-  // 3. Đánh dấu đã đọc
+  // 3. Đánh dấu đã đọc 1 thông báo
   async markAsRead(notificationId: string, userId: string) {
     const notification = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
@@ -39,8 +39,23 @@ export class NotificationService {
   }
 
   // =========================================================================
-  // 🚀 HÀM MỚI: TẠO THÔNG BÁO (KÈM CHECK SETTINGS)
-  // Gọi hàm này ở bất cứ đâu trong hệ thống (TransactionService, AuthService...)
+  // 🚀 HÀM MỚI: ĐÁNH DẤU TẤT CẢ ĐÃ ĐỌC
+  // =========================================================================
+  async markAllAsRead(userId: string) {
+    // Cập nhật tất cả các thông báo chưa đọc của user này thành đã đọc
+    const result = await this.prisma.notification.updateMany({
+      where: { userId: userId, isRead: false },
+      data: { isRead: true },
+    });
+
+    return {
+      message: 'Đã đánh dấu tất cả là đã đọc',
+      updatedCount: result.count,
+    };
+  }
+
+  // =========================================================================
+  // HÀM: TẠO THÔNG BÁO (KÈM CHECK SETTINGS)
   // =========================================================================
   async createNotification(data: {
     userId: string;
@@ -49,7 +64,6 @@ export class NotificationService {
     bodyKey: string;
     arguments?: string[];
   }) {
-    // 1. Lấy settings của user để kiểm tra xem họ có cho phép gửi không
     const user = await this.prisma.user.findUnique({
       where: { id: data.userId },
       select: {
@@ -61,18 +75,16 @@ export class NotificationService {
 
     if (!user) return null;
 
-    // 2. Chặn Spam dựa theo type và settings
     if (data.type.startsWith('budget') && !user.notiBudgetAlerts) {
-      return null; // Bỏ qua, không lưu vào DB vì user đã tắt cảnh báo ngân sách
+      return null;
     }
     if (data.type === 'email_verified' && !user.notiSecuritySystem) {
-      return null; // Bỏ qua bảo mật
+      return null;
     }
     if (data.type === 'aggregated_tx' && !user.notiSharedWallet) {
-      return null; // Bỏ qua thông báo ví nhóm
+      return null;
     }
 
-    // 3. Nếu qua được bộ lọc, tiến hành lưu vào DB và (tùy chọn) gọi Firebase Push Noti ở đây
     const newNotification = await this.prisma.notification.create({
       data: {
         userId: data.userId,
@@ -82,9 +94,6 @@ export class NotificationService {
         arguments: data.arguments || [],
       },
     });
-
-    // Tương lai: Chèn code bắn FCM Push Notification ở đây
-    // await this.fcmService.sendPush(user.fcmToken, data);
 
     return newNotification;
   }

@@ -24,6 +24,13 @@ export class NotificationController {
     return this.notificationService.getUnreadCount(userId);
   }
 
+  // 🚀 Đánh dấu TẤT CẢ đã đọc (Phải đặt trên route :id)
+  @Patch('read-all')
+  async markAllAsRead(@Req() req) {
+    const userId = req.user.id;
+    return this.notificationService.markAllAsRead(userId);
+  }
+
   // API: PATCH /notifications/:id/read -> Đánh dấu đã đọc
   @Patch(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req) {

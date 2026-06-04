@@ -180,7 +180,6 @@ export class TransactionService {
    * 🚨 Kiểm tra ngân sách và tạo thông báo chuẩn đa ngôn ngữ
    */
   private async checkBudgetAndNotify(userId: string, transactionDate: Date) {
-    // ✨ GIẢI PHÁP: Kiểm tra xem transaction có thuộc tháng hiện tại không
     const now = new Date();
     const isCurrentMonth =
       transactionDate.getMonth() === now.getMonth() &&
@@ -196,63 +195,34 @@ export class TransactionService {
 
     if (!user || !user.budgetLimit) return;
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const transactionsThisMonth = await this.prisma.transaction.findMany({
+    // ✨ Tối ưu hóa: Dùng aggregate để Database tự tính tổng tiền, thay vì kéo cả mảng data về server
+    const transactionsThisMonth = await this.prisma.transaction.aggregate({
       where: {
         userId,
         spentAt: { gte: startOfMonth },
       },
+      _sum: {
+        amount: true,
+      },
     });
 
-    const totalSpent = transactionsThisMonth.reduce(
-      (sum, tx) => sum + tx.amount,
-      0,
-    );
+    const totalSpent = transactionsThisMonth._sum.amount || 0;
     const percentage = (totalSpent / user.budgetLimit) * 100;
     const roundedPercent = percentage.toFixed(0);
 
-    // Thay thế chữ cứng thành L10n Key dùng chung
     const budgetNameKey = 'monthBudget';
 
+    // ✨ Chỉ cần gọi FirebaseService là đủ, nó đã bao thầu cả Push lẫn In-App
     if (percentage >= 100) {
-      try {
-        await this.prisma.notification.create({
-          data: {
-            userId: userId,
-            type: 'budget_100',
-            titleKey: 'notiBudgetExceededTitle',
-            bodyKey: 'notiBudgetExceededBody',
-            arguments: [budgetNameKey, roundedPercent], // Gửi key qua Flutter
-          },
-        });
-      } catch (err) {
-        this.logger.error('Lỗi khi tạo In-App Notification (100%)', err);
-      }
-
       await this.firebaseService.sendLocalizedNotification(userId, 'AM_QUY', {
-        budgetName: budgetNameKey, // Gửi key qua FCM
+        budgetName: budgetNameKey,
         percentage: roundedPercent,
       });
     } else if (percentage >= 80) {
-      try {
-        await this.prisma.notification.create({
-          data: {
-            userId: userId,
-            type: 'budget_80',
-            titleKey: 'notiBudgetWarningTitle',
-            bodyKey: 'notiBudgetWarningBody',
-            arguments: [budgetNameKey, roundedPercent], // Gửi key qua Flutter
-          },
-        });
-      } catch (err) {
-        this.logger.error('Lỗi khi tạo In-App Notification (80%)', err);
-      }
-
       await this.firebaseService.sendLocalizedNotification(userId, 'THO_OXY', {
-        budgetName: budgetNameKey, // Gửi key qua FCM
+        budgetName: budgetNameKey,
         percentage: roundedPercent,
       });
     }
