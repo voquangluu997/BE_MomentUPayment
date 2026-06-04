@@ -24,6 +24,7 @@ export class TransactionService {
    */
   async create(userId: string, dto: CreateTransactionDto) {
     try {
+      var spentAt = dto.spentAt ? new Date(dto.spentAt) : new Date();
       const newTransaction = await this.prisma.transaction.create({
         data: {
           amount: dto.amount,
@@ -32,11 +33,11 @@ export class TransactionService {
           category: dto.category,
           emoji: dto.emoji ?? '🌸',
           userId: userId,
-          spentAt: dto.spentAt ? new Date(dto.spentAt) : new Date(),
+          spentAt,
         },
       });
 
-      await this.checkBudgetAndNotify(userId);
+      await this.checkBudgetAndNotify(userId, spentAt);
 
       return newTransaction;
     } catch (error) {
@@ -178,7 +179,16 @@ export class TransactionService {
   /**
    * 🚨 Kiểm tra ngân sách và tạo thông báo chuẩn đa ngôn ngữ
    */
-  private async checkBudgetAndNotify(userId: string) {
+  private async checkBudgetAndNotify(userId: string, transactionDate: Date) {
+    // ✨ GIẢI PHÁP: Kiểm tra xem transaction có thuộc tháng hiện tại không
+    const now = new Date();
+    const isCurrentMonth =
+      transactionDate.getMonth() === now.getMonth() &&
+      transactionDate.getFullYear() === now.getFullYear();
+
+    // Nếu thêm/sửa transaction của tháng trước (hoặc tháng khác), bỏ qua không gửi thông báo
+    if (!isCurrentMonth) return;
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { budgetLimit: true },
@@ -204,7 +214,7 @@ export class TransactionService {
     const percentage = (totalSpent / user.budgetLimit) * 100;
     const roundedPercent = percentage.toFixed(0);
 
-    // ✨ GIẢI PHÁP: Thay thế chữ cứng thành L10n Key dùng chung
+    // Thay thế chữ cứng thành L10n Key dùng chung
     const budgetNameKey = 'monthBudget';
 
     if (percentage >= 100) {
