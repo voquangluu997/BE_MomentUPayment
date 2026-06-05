@@ -2,10 +2,11 @@
 import { Module } from '@nestjs/common';
 import { FirebaseAdminService } from './firebase-admin.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
-  imports: [PrismaModule], // Nếu FirebaseAdminService cần PrismaService
+  imports: [PrismaModule, NotificationModule], // Nếu FirebaseAdminService cần PrismaService
   providers: [FirebaseAdminService],
-  exports: [FirebaseAdminService], // 👈 CỰC KỲ QUAN TRỌNG: Phải export thì mới dùng ở nơi khác được
+  exports: [FirebaseAdminService],
 })
 export class FirebaseNotificationModule {}

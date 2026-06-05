@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class BadgesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   // 1. Lấy danh sách huy hiệu khi user mở app
   async getUserBadges(userId: string): Promise<string[]> {
@@ -16,24 +20,34 @@ export class BadgesService {
     return userBadges.map((badge) => badge.badgeId);
   }
 
-  // 2. Lưu huy hiệu mới khi user unlock
   async unlockBadges(userId: string, newBadges: string[]) {
     if (!newBadges || newBadges.length === 0) {
       return { addedCount: 0 };
     }
 
-    // Map mảng string thành mảng object cho Prisma
     const badgeDataToInsert = newBadges.map((badgeId) => ({
       userId,
       badgeId,
     }));
 
-    // Sử dụng createMany với skipDuplicates: true (Đặc sản hỗ trợ riêng cho PostgreSQL)
-    // Nó sẽ bỏ qua các badgeId mà user ĐÃ CÓ (nhờ cái @@unique constraint bên Prisma)
     const result = await this.prisma.userBadge.createMany({
       data: badgeDataToInsert,
       skipDuplicates: true,
     });
+
+    // 🚀 BỔ SUNG: Bắn thông báo In-app cho từng huy hiệu được thêm thành công
+    // Chỉ bắn thông báo nếu thực sự có huy hiệu mới được thêm (tránh spam khi duplicate)
+    if (result.count > 0) {
+      for (const badgeId of newBadges) {
+        await this.notificationService.createNotification({
+          userId: userId,
+          type: 'badge_unlocked',
+          titleKey: 'NOTI_BADGE_UNLOCKED_TITLE', // Key đa ngôn ngữ cho Flutter
+          bodyKey: 'NOTI_BADGE_UNLOCKED_BODY',
+          arguments: [badgeId], // Truyền ID huy hiệu để Flutter hiển thị icon/tên tương ứng
+        });
+      }
+    }
 
     return {
       message: 'Đã đồng bộ thành tựu',

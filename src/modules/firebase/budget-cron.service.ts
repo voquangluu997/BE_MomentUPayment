@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FirebaseAdminService } from './firebase-admin.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class BudgetCronService {
@@ -17,6 +18,7 @@ export class BudgetCronService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebaseAdminService: FirebaseAdminService,
+    private readonly notificationService: NotificationService, // 🚀 BƠM VÀO ĐÂY
   ) {}
 
   /**
@@ -289,13 +291,31 @@ export class BudgetCronService {
   async handleMonthlyBadgeReset() {
     this.logger.log('⏰ Bắt đầu tiến trình Reset Huy Hiệu Tháng...');
     try {
-      const result = await this.prisma.userBadge.deleteMany({
-        where: {
-          badgeId: { in: this.MONTHLY_BADGES },
-        },
+      // 1. TÌM NHỮNG AI ĐANG SỞ HỮU HUY HIỆU THÁNG TRƯỚC KHI XÓA
+      const usersWithBadges = await this.prisma.userBadge.findMany({
+        where: { badgeId: { in: this.MONTHLY_BADGES } },
+        select: { userId: true },
+        distinct: ['userId'], // Lấy danh sách user duy nhất, tránh gửi trùng lặp
       });
+
+      // 2. THỰC HIỆN XÓA HÀNG LOẠT
+      const result = await this.prisma.userBadge.deleteMany({
+        where: { badgeId: { in: this.MONTHLY_BADGES } },
+      });
+
+      // 3. GỬI THÔNG BÁO IN-APP CHO NHỮNG USER BỊ ẢNH HƯỞNG
+      for (const user of usersWithBadges) {
+        await this.notificationService.createNotification({
+          userId: user.userId,
+          type: 'badge_reset',
+          titleKey: 'NOTI_BADGE_RESET_TITLE',
+          bodyKey: 'NOTI_BADGE_RESET_BODY',
+          arguments: [],
+        });
+      }
+
       this.logger.log(
-        `✅ Hoàn tất! Đã thu hồi ${result.count} huy hiệu tháng cho toàn bộ hệ thống.`,
+        `✅ Hoàn tất! Đã thu hồi ${result.count} huy hiệu. Đã gửi thông báo cho ${usersWithBadges.length} users.`,
       );
     } catch (error) {
       this.logger.error('🚨 Lỗi nghiêm trọng khi reset huy hiệu tháng:', error);
