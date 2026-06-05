@@ -7,6 +7,13 @@ import { FirebaseAdminService } from './firebase-admin.service';
 export class BudgetCronService {
   private readonly logger = new Logger(BudgetCronService.name);
 
+  // 🚀 BỔ SUNG: Danh sách ID của các huy hiệu sẽ bị khóa lại (reset) mỗi tháng
+  private readonly MONTHLY_BADGES = [
+    'budgetMaster',
+    'topSpender',
+    'savingsKing',
+  ];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebaseAdminService: FirebaseAdminService,
@@ -271,6 +278,27 @@ export class BudgetCronService {
         '🚨 Lỗi nghiêm trọng khi chạy Cronjob thống kê tháng:',
         error,
       );
+    }
+  }
+
+  /**
+   * ⏰ BỔ SUNG: Khởi tạo lại (Reset) huy hiệu tháng vào mùng 1 hàng tháng lúc 00:00 (Giờ hệ thống)
+   * Việc dùng `deleteMany` giúp dọn dẹp hàng loạt cực kỳ nhanh mà không lo nghẽn DB.
+   */
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async handleMonthlyBadgeReset() {
+    this.logger.log('⏰ Bắt đầu tiến trình Reset Huy Hiệu Tháng...');
+    try {
+      const result = await this.prisma.userBadge.deleteMany({
+        where: {
+          badgeId: { in: this.MONTHLY_BADGES },
+        },
+      });
+      this.logger.log(
+        `✅ Hoàn tất! Đã thu hồi ${result.count} huy hiệu tháng cho toàn bộ hệ thống.`,
+      );
+    } catch (error) {
+      this.logger.error('🚨 Lỗi nghiêm trọng khi reset huy hiệu tháng:', error);
     }
   }
 }

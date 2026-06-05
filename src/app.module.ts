@@ -14,6 +14,7 @@ import { BudgetCronService } from './modules/firebase/budget-cron.service';
 import { FirebaseNotificationModule } from './modules/firebase/firebase-notification.module';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { HealthModule } from './health/health.module';
+import { BadgesModule } from './modules/badges/badge.module';
 
 @Module({
   imports: [
@@ -43,7 +44,8 @@ import { HealthModule } from './health/health.module';
     UserModule,
     NotificationModule,
     FirebaseNotificationModule,
-    HealthModule
+    HealthModule,
+    BadgesModule,
   ],
   providers: [BudgetCronService],
 })

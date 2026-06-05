@@ -37,6 +37,7 @@ model User {
   updatedAt           DateTime       @default(now()) @updatedAt
   transactions        Transaction[]
   notifications       Notification[]
+  badges             UserBadge[]
 }
 
 model Transaction {
@@ -64,4 +65,15 @@ model Notification {
   
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model UserBadge {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId    String   // Lưu ID huy hiệu từ Flutter gửi lên, VD: 'firstBlood', 'richKid'
+  unlockedAt DateTime @default(now())
+
+  // Ràng buộc quan trọng: Một user chỉ được mở khóa một loại huy hiệu DUY NHẤT 1 lần
+  @@unique([userId, badgeId])
 }
