@@ -1,25 +1,22 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import * as nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 
 @Processor('mail-queue')
 export class MailProcessor {
-  // private transporter;
-  private resend: Resend;
+  private transporter;
 
   constructor() {
     // 🛠️ GIỮ NGUYÊN cấu hình transporter hoạt động tốt trước đó của bạn
-    // this.transporter = nodemailer.createTransport({
-    //   host: process.env.MAIL_HOST,
-    //   port: parseInt(process.env.MAIL_PORT, 10),
-    //   secure: true,
-    //   auth: {
-    //     user: process.env.MAIL_USER,
-    //     pass: process.env.MAIL_PASS,
-    //   },
-    // });
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    this.transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST,
+      port: parseInt(process.env.MAIL_PORT, 10),
+      secure: true,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
   }
 
   @Process('send-activation-email')
@@ -45,18 +42,13 @@ export class MailProcessor {
 
     // 3. Gửi mail
     try {
-      // await this.transporter.sendMail({
-      //   from: '"Moments U Payment" <onboarding@resend.dev>',
-      //   to: to, // Đã sửa: Gửi đúng email người dùng
-      //   subject: subject,
-      //   html: htmlContent,
-      // });
-      await this.resend.emails.send({
-        from: 'Moments U Payment <onboarding@resend.dev>',
-        to: to,
+      await this.transporter.sendMail({
+        from: '"Moments U Payment" <onboarding@resend.dev>',
+        to: to, // Đã sửa: Gửi đúng email người dùng
         subject: subject,
         html: htmlContent,
       });
+
       console.log(`✉️ Success: [${type}] email sent to [${email}]`);
     } catch (error) {
       console.error(`❌ Failed to send [${type}] email to [${email}]:`, error);
@@ -70,21 +62,21 @@ export class MailProcessor {
     const from = '"Moments U Payment" <onboarding@resend.dev>';
     let to = 'voquangluu997@gmail.com';
 
-    // await this.transporter.sendMail({
-    //   from: from,
-    //   to: to,
-    //   subject: '🔑 Your Security Code for Moments U Payment',
-    //   html: `
-    //     <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
-    //       <h2>Hello there!</h2>
-    //       <p>Someone requested to reset your password. If it was you, please use this code:</p>
-    //       <div style="font-size: 32px; font-weight: bold; color: #E91E63; text-align: center; margin: 20px 0;">
-    //         ${otp}
-    //       </div>
-    //       <p>This code will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
-    //     </div>
-    //   `,
-    // });
+    await this.transporter.sendMail({
+      from: from,
+      to: to,
+      subject: '🔑 Your Security Code for Moments U Payment',
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
+          <h2>Hello there!</h2>
+          <p>Someone requested to reset your password. If it was you, please use this code:</p>
+          <div style="font-size: 32px; font-weight: bold; color: #E91E63; text-align: center; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p>This code will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
 
     console.log(`✉️ Reset password OTP sent to: ${email}`);
   }

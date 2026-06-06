@@ -23,15 +23,52 @@ import { MailModule } from './modules/mail/mail.module';
     ConfigModule.forRoot({ isGlobal: true, load: [redisConfig] }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        redis: {
-          host: configService.get<string>('redis.host'),
-          port: configService.get<number>('redis.port'),
-          password: configService.get<string>('redis.password'),
-          username: 'default',
-          tls: configService.get('redis.tls'),
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const host = configService.get<string>('REDIS_HOST');
+        const port = configService.get<string>('REDIS_PORT');
+        const password = configService.get<string>('REDIS_PASSWORD');
+        const useTLS = configService.get<string>('REDIS_TLS') === '1';
+
+        // 1. Fallback cho local nếu quên không set file .env
+        if (!host) {
+          console.log(
+            '⚠️ Không tìm thấy REDIS_HOST. Chạy tự động với localhost.',
+          );
+          return {
+            redis: { host: 'localhost', port: 6379 },
+          };
+        }
+
+        // 2. Cấu hình mặc định
+        const redisConfig: any = {
+          host,
+          port: parseInt(port, 10) || 6379,
+          retryStrategy: (times: number) => Math.min(times * 50, 2000),
+          maxRetriesPerRequest: 3,
+        };
+
+        // 3. Xử lý Auth thông minh: Chỉ thêm user/pass NẾU file .env có password (tức là đang chạy Upstash)
+        if (password) {
+          redisConfig.password = password;
+          redisConfig.username =
+            configService.get<string>('REDIS_USERNAME') || 'default';
+        }
+
+        // 4. Xử lý TLS cho Production
+        if (useTLS) {
+          redisConfig.tls = { rejectUnauthorized: false };
+        }
+
+        return {
+          redis: redisConfig,
+          defaultJobOptions: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     // Cấu hình BullBoard toàn cục
