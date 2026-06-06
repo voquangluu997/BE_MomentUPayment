@@ -4,7 +4,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service'; // 🌸 THÊM IMPORT NÀY (Khai báo đường dẫn tới file service)
-import { MailProcessor } from './mail.processor';
 import { UserService } from '../users/user.service';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -16,10 +15,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     // 1. Đăng ký Passport với chiến lược mặc định là JWT
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
-    // 2. Đăng ký hàng đợi Redis
-    BullModule.registerQueue({
-      name: 'mail-queue',
-    }),
     // 3. Đăng ký cấu hình JwtService có sẵn của NestJS
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -33,7 +28,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   controllers: [AuthController],
   providers: [
     AuthService, // 🌸 ĐÃ SỬA: Đăng ký AuthService ở đây để Controller có thể Inject (Tiêm) vào được!
-    MailProcessor,
     UserService,
     JwtStrategy,
   ],

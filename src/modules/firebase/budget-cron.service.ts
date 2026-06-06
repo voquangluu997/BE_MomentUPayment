@@ -3,6 +3,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FirebaseAdminService } from './firebase-admin.service';
 import { NotificationService } from '../notifications/notification.service';
+import { v2 as cloudinary } from 'cloudinary';
+import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bull';
 
 @Injectable()
 export class BudgetCronService {
@@ -27,6 +30,7 @@ export class BudgetCronService {
     private readonly prisma: PrismaService,
     private readonly firebaseAdminService: FirebaseAdminService,
     private readonly notificationService: NotificationService,
+    @InjectQueue('mail-queue') private mailQueue: Queue,
   ) {}
 
   /**
@@ -238,6 +242,121 @@ export class BudgetCronService {
       );
     } catch (error) {
       this.logger.error('🚨 Lỗi reset huy hiệu tháng:', error);
+    }
+  }
+
+  /**
+   * 🧹 TỰ ĐỘNG DỌN DẸP ẢNH RÁC (Orphaned Images)
+   * Chạy lúc 2 giờ sáng hàng ngày
+   */
+  @Cron('0 2 * * *')
+  async handleCleanupOrphanedImages() {
+    this.logger.log('🧹 Bắt đầu tiến trình dọn dẹp ảnh rác trên Cloudinary...');
+    try {
+      // 1. Lấy danh sách tất cả URL ảnh đang có trong database (trong 7 ngày gần đây)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const usedTransactions = await this.prisma.transaction.findMany({
+        where: {
+          imageUrl: { not: null },
+          spentAt: { gte: sevenDaysAgo },
+        },
+        select: { imageUrl: true },
+      });
+
+      const usedUrls = new Set(usedTransactions.map((t) => t.imageUrl));
+
+      // 2. Lấy danh sách ảnh từ Cloudinary (theo folder đã định nghĩa)
+      // Lưu ý: Cần cấu hình Cloudinary Search API hoặc list resources
+      const resources = await cloudinary.api.resources({
+        type: 'upload',
+        prefix: 'moment_u_payment/', // Thư mục của app
+        max_results: 100,
+      });
+
+      let deleteCount = 0;
+      for (const resource of resources.resources) {
+        // Kiểm tra xem ảnh trên Cloud có nằm trong list ảnh đang sử dụng không
+        if (!usedUrls.has(resource.secure_url)) {
+          // 3. Xóa ảnh không sử dụng
+          await cloudinary.uploader.destroy(resource.public_id);
+          this.logger.log(`🗑️ Đã xóa ảnh rác: ${resource.public_id}`);
+          deleteCount++;
+        }
+      }
+
+      this.logger.log(`✅ Hoàn thành dọn dẹp. Đã xóa ${deleteCount} ảnh rác.`);
+    } catch (error) {
+      this.logger.error('🚨 Lỗi Cronjob dọn dẹp ảnh:', error);
+    }
+  }
+
+  /**
+   * ⏰ Cronjob Dọn dẹp tài khoản chưa xác thực (Chạy 3h sáng hàng ngày)
+   */
+  @Cron('0 3 * * *')
+  async handleCleanupUnverifiedAccounts() {
+    this.logger.log(
+      '🔐 Bắt đầu tiến trình kiểm tra tài khoản chưa xác thực...',
+    );
+    const now = new Date();
+
+    // Tìm các user chưa xác thực
+    const unverifiedUsers = await this.prisma.user.findMany({
+      where: { isEmailVerified: false },
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+        language: true,
+        verificationToken: true,
+      },
+    });
+
+    for (const user of unverifiedUsers) {
+      const diffTime = Math.abs(now.getTime() - user.createdAt.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      // 1. Nhắc nhở trước 48h (tức là sau 28 ngày)
+      if (diffDays === 28) {
+        await this.sendVerificationReminder(user);
+      }
+
+      // 2. Xóa tài khoản sau 30 ngày
+      if (diffDays >= 30) {
+        await this.deleteUnverifiedAccount(user);
+      }
+    }
+  }
+
+  private async sendVerificationReminder(user: {
+    email: string;
+    verificationToken: string | null;
+  }) {
+    if (!user.verificationToken) {
+      this.logger.warn(
+        `⚠️ Bỏ qua gửi mail nhắc nhở cho ${user.email} do thiếu token xác thực.`,
+      );
+      return;
+    }
+
+    await this.mailQueue.add('send-activation-email', {
+      email: user.email,
+      token: user.verificationToken,
+      type: 'reminder',
+    });
+    this.logger.log(
+      `📧 Đã thêm job gửi mail nhắc nhở vào queue cho: ${user.email}`,
+    );
+  }
+
+  private async deleteUnverifiedAccount(user: { id: string; email: string }) {
+    try {
+      await this.prisma.user.delete({ where: { id: user.id } });
+      this.logger.log(`🗑️ Đã xóa tài khoản chưa xác thực: ${user.email}`);
+    } catch (error) {
+      this.logger.error(`🚨 Lỗi xóa user ${user.id}:`, error);
     }
   }
 }

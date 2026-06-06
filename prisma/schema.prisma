@@ -10,7 +10,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
 }
-
 model User {
   id                  String         @id @default(uuid())
   email               String         @unique
@@ -20,14 +19,14 @@ model User {
   isEmailVerified     Boolean        @default(false)
   verificationToken   String?        @unique
   googleId            String?        @unique
-  budgetLimit         Float? 
+  budgetLimit         Float?
   fcmToken            String?
   language            String         @default("vi")
-  isFirstLogin        Boolean       @default(true)
-  resetPasswordOtp     String?
+  isFirstLogin        Boolean        @default(true)
+  resetPasswordOtp    String?
   resetPasswordExpires DateTime?
-  timezone             String?  @default("Asia/Ho_Chi_Minh")
-  
+  timezone            String?        @default("Asia/Ho_Chi_Minh")
+
   // 🔑 Cài đặt thông báo (Opt-in / Opt-out)
   notiBudgetAlerts    Boolean        @default(true)
   notiSecuritySystem  Boolean        @default(true)
@@ -37,7 +36,7 @@ model User {
   updatedAt           DateTime       @default(now()) @updatedAt
   transactions        Transaction[]
   notifications       Notification[]
-  badges             UserBadge[]
+  badges              UserBadge[]
 }
 
 model Transaction {
@@ -49,20 +48,22 @@ model Transaction {
   emoji    String? // Lưu cảm xúc 🥰, 💸
   spentAt  DateTime @default(now())
   userId   String
-  user     User     @relation(fields: [userId], references: [id])
+  // Cấu hình Cascade Delete
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
   id          String   @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  
+  // Cấu hình Cascade Delete
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // 🔑 Thay thế title/body bằng Key đa ngôn ngữ và tham số
   type        String   // VD: 'budget_80', 'budget_100', 'email_verified', 'aggregated_tx'
   titleKey    String   // VD: 'notiBudgetWarningTitle'
   bodyKey     String   // VD: 'notiBudgetWarningBody'
   arguments   String[] @default([]) // Array lưu biến số VD: ["Tiền cà phê", "85"]
-  
+
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
 }

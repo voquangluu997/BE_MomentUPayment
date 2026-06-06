@@ -15,6 +15,7 @@ import { FirebaseNotificationModule } from './modules/firebase/firebase-notifica
 import { NotificationModule } from './modules/notifications/notification.module';
 import { HealthModule } from './health/health.module';
 import { BadgesModule } from './modules/badges/badge.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { BadgesModule } from './modules/badges/badge.module';
     FirebaseNotificationModule,
     HealthModule,
     BadgesModule,
+    MailModule,
   ],
   providers: [BudgetCronService],
 })

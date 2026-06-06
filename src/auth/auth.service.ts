@@ -39,7 +39,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    // Bước 1: Khởi tạo tài khoản người dùng trong DB trước
+    // 1. Tạo user trong DB
     const newUser = await this.userService.createUser({
       email: dto.email,
       password: hashedPassword,
@@ -48,51 +48,35 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    // Bước 2: Đẩy tác vụ gửi Mail vào hàng đợi Bull Queue
+    // 2. Gửi mail "Fire and Forget" (Không rollback dù mail lỗi)
     try {
       await this.mailQueue.add('send-activation-email', {
         email: newUser.email,
         token: verificationToken,
+        type: 'welcome', // Đánh dấu đây là email chào mừng
       });
     } catch (mailError) {
-      console.error('❌ Lỗi hệ thống hàng đợi gửi mail:', mailError);
-
-      // 🛠️ THỰC HIỆN ROLLBACK: Xóa tài khoản vừa tạo để giải phóng Email
-      try {
-        await this.prisma.user.delete({
-          where: { id: newUser.id },
-        });
-        console.log(`🔄 Rollback thành công: Đã xóa user ID ${newUser.id}`);
-      } catch (dbError) {
-        console.error(
-          '🚨 Lỗi nghiêm trọng: Không thể xóa user khi thực hiện rollback!',
-          dbError,
-        );
-      }
-
-      // Ném ra lỗi thông báo cho client biết đăng ký thất bại
-      throw new BadRequestException(
-        'Đăng ký tài khoản không thành công do hệ thống xác thực mail gặp sự cố. Vui lòng thử lại sau! 😢',
+      // Chỉ ghi log lỗi hệ thống, không làm gián đoạn việc đăng ký của user
+      console.error(
+        '❌ Cảnh báo: Không thể thêm tác vụ gửi mail vào queue:',
+        mailError,
       );
     }
 
-    // Bước 3: Nếu mọi thứ suôn sẻ, tiến hành ký Token và trả về kết quả thành công
+    // 3. Trả về thành công
     const backendToken = this.jwtService.sign({ userId: newUser.id });
-
     return {
       success: true,
-      message: 'Registration successful! Verification email sent.',
+      message: 'Registration successful! (Email verification pending)',
       backend_jwt_token: backendToken,
       user: {
         id: newUser.id,
         email: newUser.email,
         name: newUser.name,
-        avatar: newUser.avatar,
-        isEmailVerified: newUser.isEmailVerified,
+        isEmailVerified: false,
       },
     };
   }
-
   // =========================================================================
   // 2. ĐĂNG NHẬP (LOGIN)
   // =========================================================================
