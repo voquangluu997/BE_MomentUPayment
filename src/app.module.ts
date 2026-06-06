@@ -28,6 +28,7 @@ import { MailModule } from './modules/mail/mail.module';
           host: configService.get<string>('redis.host'),
           port: configService.get<number>('redis.port'),
           password: configService.get<string>('redis.password'),
+          username: 'default',
           tls: configService.get('redis.tls'),
         },
       }),
