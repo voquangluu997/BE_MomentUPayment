@@ -32,7 +32,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const existingUser = await this.userService.findByEmail(dto.email);
     if (existingUser) {
-      throw new BadRequestException('Email đã tồn tại rùi nè! 💕');
+      throw new BadRequestException('error_email_already_exists');
     }
 
     const saltRounds = 10;
@@ -84,23 +84,17 @@ export class AuthService {
     const user = await this.userService.findByEmail(dto.email);
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Sai email hoặc mật khẩu mất tiêu rồi! 😢',
-      );
+      throw new UnauthorizedException('error_invalid_credentials');
     }
 
     // 💡 Xử lý thân thiện cho user đăng nhập Google nhưng bấm nhầm sang form Login thường
     if (!user.password) {
-      throw new UnauthorizedException(
-        'Tài khoản này đang liên kết bằng Google. Bạn hãy đăng nhập bằng Google hoặc dùng "Quên mật khẩu" để tạo mật khẩu mới nhé! 🚀',
-      );
+      throw new UnauthorizedException('error_google_linked');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException(
-        'Sai email hoặc mật khẩu mất tiêu rồi! 😢',
-      );
+      throw new UnauthorizedException('error_invalid_credentials');
     }
 
     // Xử lý thông báo lần đầu đăng nhập
@@ -171,7 +165,7 @@ export class AuthService {
     const googleUser = await response.json();
 
     if (googleUser.error) {
-      throw new BadRequestException('Google token is invalid or expired.');
+      throw new BadRequestException('error_google_token_invalid');
     }
 
     let user = await this.userService.findByEmail(googleUser.email);
@@ -214,7 +208,7 @@ export class AuthService {
   async activate(token: string) {
     const user = await this.userService.findByVerificationToken(token);
     if (!user) {
-      throw new BadRequestException('Invalid or expired token.');
+      throw new BadRequestException('error_invalid_activation_token');
     }
 
     await this.userService.updateUser(user.id, {
@@ -257,7 +251,7 @@ export class AuthService {
   async resendVerification(userId: string) {
     const user = await this.userService.findById(userId);
     if (!user) {
-      throw new BadRequestException('User profile not found.');
+      throw new BadRequestException('error_user_not_found');
     }
 
     if (user.isEmailVerified) {
@@ -286,7 +280,7 @@ export class AuthService {
       userPayload.id || userPayload.userId,
     );
     if (!dbUser) {
-      throw new BadRequestException('User profile not found.');
+      throw new BadRequestException('error_user_not_found');
     }
 
     return {
@@ -307,12 +301,9 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.userService.findByEmail(dto.email);
     if (!user) {
-      throw new BadRequestException(
-        'Email này chưa được đăng ký tài khoản rùi! 😢',
-      );
+      throw new BadRequestException('error_email_not_found');
     }
 
-    // Khuyến khích đổi Math.random() sang crypto.randomInt nếu bạn muốn an toàn tuyệt đối
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -328,7 +319,7 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'Mã xác thực OTP khôi phục mật khẩu đã gửi vào hòm thư! ✉️',
+      message: 'OTP sent successfully.',
     };
   }
 
@@ -339,24 +330,19 @@ export class AuthService {
     const user = await this.userService.findByEmail(dto.email);
 
     if (!user) {
-      throw new BadRequestException(
-        'Thông tin xác thực tài khoản không hợp lệ! ❌',
-      );
+      throw new BadRequestException('error_invalid_account');
     }
 
     const isOtpValid = user['resetPasswordOtp'] === dto.otp;
     const isOtpExpired = new Date(user['resetPasswordExpires']) < new Date();
 
     if (!isOtpValid || isOtpExpired) {
-      throw new BadRequestException(
-        'Mã OTP không chính xác hoặc đã hết hạn mất rồi! ❌',
-      );
+      throw new BadRequestException('error_invalid_otp');
     }
 
-    // 💡 Fallback an toàn nếu Frontend gửi 'password' thay vì 'newPassword'
     const finalNewPassword = dto.newPassword || (dto as any).password;
     if (!finalNewPassword) {
-      throw new BadRequestException('Vui lòng cung cấp mật khẩu mới!');
+      throw new BadRequestException('error_missing_password');
     }
 
     const saltRounds = 10;
@@ -370,7 +356,7 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'Đặt lại mật khẩu mới thành công rùi nè! 🎉',
+      message: 'Password reset successful.',
     };
   }
 
@@ -380,22 +366,19 @@ export class AuthService {
   async updatePassword(userId: string, dto: UpdatePasswordDto) {
     const user = await this.userService.findById(userId);
     if (!user) {
-      throw new BadRequestException(
-        'Không tìm thấy thông tin tài khoản hợp lệ! 😢',
-      );
+      throw new BadRequestException('error_invalid_account');
     }
 
-    // 💡 Chỉ yêu cầu oldPassword nếu tài khoản đã từng được đặt mật khẩu
     if (user.password) {
       const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
       if (!isMatch) {
-        throw new BadRequestException('Mật khẩu hiện tại chưa đúng rồi nè! ❌');
+        throw new BadRequestException('error_incorrect_old_password');
       }
     }
 
     const finalNewPassword = dto.newPassword || (dto as any).password;
     if (!finalNewPassword) {
-      throw new BadRequestException('Vui lòng cung cấp mật khẩu mới!');
+      throw new BadRequestException('error_missing_password');
     }
 
     const saltRounds = 10;
@@ -407,9 +390,7 @@ export class AuthService {
 
     return {
       success: true,
-      message: user.password
-        ? 'Cập nhật mật khẩu mới thành công rùi nhé! 🥰'
-        : 'Đã thiết lập mật khẩu mới cho tài khoản Google thành công! 🥰',
+      message: 'Password updated successfully.',
     };
   }
 
@@ -428,7 +409,7 @@ export class AuthService {
     }
 
     if (Object.keys(updateData).length === 0) {
-      throw new BadRequestException('No fields provided for update');
+      throw new BadRequestException('error_no_fields_provided');
     }
 
     const updatedUser = await this.userService.updateUser(userId, updateData);
