@@ -89,10 +89,12 @@ export class MailProcessor {
     // Prefer Resend API (avoids SMTP port/network blocks on cloud hosts)
     try {
       if (process.env.RESEND_API_KEY) {
+        console.log(`✉️ Sending (Resend): [${type}] email sent to [${to}]`);
         await this.sendViaResend(to, subject, htmlContent, from as string);
         console.log(`✉️ Success (Resend): [${type}] email sent to [${to}]`);
         return;
       }
+      console.log(`✉️ Sending (smtp): [${type}] email sent to [${to}]`);
 
       // Fallback to SMTP transporter for local/dev
       await this.transporter.sendMail({
