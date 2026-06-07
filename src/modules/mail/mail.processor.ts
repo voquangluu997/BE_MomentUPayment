@@ -1,6 +1,7 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 // Node 18+ provides global `fetch`; declare for TypeScript
 declare const fetch: any;
@@ -44,22 +45,13 @@ export class MailProcessor {
       subject,
       html: htmlContent,
     };
+    const resend = new Resend(apiKey);
+    const { data, error } = await resend.emails.send(payload);
 
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Resend API error ${res.status}: ${text}`);
+    if (error) {
+      throw new Error(`Resend API error: ${error.message}`);
     }
-
-    return res.json();
+    return data;
   }
 
   @Process('send-activation-email')
@@ -69,7 +61,7 @@ export class MailProcessor {
     const { email, token, type } = job.data;
 
     // 1. Chuẩn bị URL
-    const baseUrl = process.env.APP_BASE_URL || 'http://192.168.13.125:8001';
+    const baseUrl = process.env.APP_BASE_URL;
     const activationUrl = `${baseUrl}/auth/activate?token=${token}`;
 
     // 2. Xác định nội dung dựa trên loại email
