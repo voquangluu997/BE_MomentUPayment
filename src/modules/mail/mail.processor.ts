@@ -19,11 +19,12 @@ export class MailProcessor {
       connectionTimeout: 20000, // 20 giây chờ kết nối socket (mặc định rất ngắn)
       greetingTimeout: 20000, // 20 giây chờ phản hồi chào hỏi từ SMTP Server
       socketTimeout: 30000,
+      family: 4, // Buộc sử dụng IPv4 để tránh lỗi DNS lookup trong môi trường có IPv6 không ổn định
       tls: {
         rejectUnauthorized: false,
         minVersion: 'TLSv1.2',
       },
-    });
+    } as any);
   }
 
   @Process('send-activation-email')
