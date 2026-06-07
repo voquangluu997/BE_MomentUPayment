@@ -11,15 +11,18 @@ export class MailProcessor {
     this.transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
       port: parseInt(process.env.MAIL_PORT, 10),
-      secure: true,
+      secure: parseInt(process.env.MAIL_PORT, 10) === 465,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
       },
+      connectionTimeout: 20000, // 20 giây chờ kết nối socket (mặc định rất ngắn)
+      greetingTimeout: 20000, // 20 giây chờ phản hồi chào hỏi từ SMTP Server
+      socketTimeout: 30000,
       tls: {
         rejectUnauthorized: false,
+        minVersion: 'TLSv1.2',
       },
-      connectionTimeout: 10000,
     });
   }
 
