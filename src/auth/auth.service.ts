@@ -27,7 +27,7 @@ export class AuthService {
   ) {}
 
   // =========================================================================
-  // 1. ĐĂNG KÝ (REGISTER) - ĐÃ THÊM CƠ CHẾ ROLLBACK KHI LỖI MAIL QUEUE
+  // 1. ĐĂNG KÝ (REGISTER)
   // =========================================================================
   async register(dto: RegisterDto) {
     const existingUser = await this.userService.findByEmail(dto.email);
@@ -48,15 +48,14 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    // 2. Gửi mail "Fire and Forget" (Không rollback dù mail lỗi)
+    // 2. Gửi mail "Fire and Forget"
     try {
       await this.mailQueue.add('send-activation-email', {
         email: newUser.email,
         token: verificationToken,
-        type: 'welcome', // Đánh dấu đây là email chào mừng
+        type: 'welcome',
       });
     } catch (mailError) {
-      // Chỉ ghi log lỗi hệ thống, không làm gián đoạn việc đăng ký của user
       console.error(
         '❌ Cảnh báo: Không thể thêm tác vụ gửi mail vào queue:',
         mailError,
@@ -77,14 +76,23 @@ export class AuthService {
       },
     };
   }
+
   // =========================================================================
   // 2. ĐĂNG NHẬP (LOGIN)
   // =========================================================================
   async login(dto: LoginDto) {
     const user = await this.userService.findByEmail(dto.email);
-    if (!user || !user.password) {
+
+    if (!user) {
       throw new UnauthorizedException(
         'Sai email hoặc mật khẩu mất tiêu rồi! 😢',
+      );
+    }
+
+    // 💡 Xử lý thân thiện cho user đăng nhập Google nhưng bấm nhầm sang form Login thường
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'Tài khoản này đang liên kết bằng Google. Bạn hãy đăng nhập bằng Google hoặc dùng "Quên mật khẩu" để tạo mật khẩu mới nhé! 🚀',
       );
     }
 
@@ -95,6 +103,7 @@ export class AuthService {
       );
     }
 
+    // Xử lý thông báo lần đầu đăng nhập
     if (user['isFirstLogin'] === true) {
       try {
         if (!user.isEmailVerified) {
@@ -176,6 +185,7 @@ export class AuthService {
         isEmailVerified: true,
       });
     } else {
+      // 💡 Không ghi đè password hiện tại nếu user đã reset mật khẩu trước đó
       user = await this.userService.updateUser(user.id, {
         googleId: googleUser.sub,
         isEmailVerified: true,
@@ -302,6 +312,7 @@ export class AuthService {
       );
     }
 
+    // Khuyến khích đổi Math.random() sang crypto.randomInt nếu bạn muốn an toàn tuyệt đối
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -342,8 +353,14 @@ export class AuthService {
       );
     }
 
+    // 💡 Fallback an toàn nếu Frontend gửi 'password' thay vì 'newPassword'
+    const finalNewPassword = dto.newPassword || (dto as any).password;
+    if (!finalNewPassword) {
+      throw new BadRequestException('Vui lòng cung cấp mật khẩu mới!');
+    }
+
     const saltRounds = 10;
-    const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
+    const hashedNewPassword = await bcrypt.hash(finalNewPassword, saltRounds);
 
     await this.userService.updateUser(user.id, {
       password: hashedNewPassword,
@@ -362,19 +379,27 @@ export class AuthService {
   // =========================================================================
   async updatePassword(userId: string, dto: UpdatePasswordDto) {
     const user = await this.userService.findById(userId);
-    if (!user || !user.password) {
+    if (!user) {
       throw new BadRequestException(
         'Không tìm thấy thông tin tài khoản hợp lệ! 😢',
       );
     }
 
-    const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
-    if (!isMatch) {
-      throw new BadRequestException('Mật khẩu hiện tại chưa đúng rồi nè! ❌');
+    // 💡 Chỉ yêu cầu oldPassword nếu tài khoản đã từng được đặt mật khẩu
+    if (user.password) {
+      const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
+      if (!isMatch) {
+        throw new BadRequestException('Mật khẩu hiện tại chưa đúng rồi nè! ❌');
+      }
+    }
+
+    const finalNewPassword = dto.newPassword || (dto as any).password;
+    if (!finalNewPassword) {
+      throw new BadRequestException('Vui lòng cung cấp mật khẩu mới!');
     }
 
     const saltRounds = 10;
-    const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
+    const hashedNewPassword = await bcrypt.hash(finalNewPassword, saltRounds);
 
     await this.userService.updateUser(userId, {
       password: hashedNewPassword,
@@ -382,7 +407,9 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'Cập nhật mật khẩu mới thành công rùi nhé! 🥰',
+      message: user.password
+        ? 'Cập nhật mật khẩu mới thành công rùi nhé! 🥰'
+        : 'Đã thiết lập mật khẩu mới cho tài khoản Google thành công! 🥰',
     };
   }
 
