@@ -1,4 +1,5 @@
 import { Processor, Process } from '@nestjs/bull';
+import { Injectable } from '@nestjs/common';
 import { Job } from 'bull';
 import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
@@ -7,6 +8,7 @@ import { Resend } from 'resend';
 declare const fetch: any;
 
 @Processor('mail-queue')
+@Injectable()
 export class MailProcessor {
   private transporter;
 
@@ -61,7 +63,8 @@ export class MailProcessor {
     const { email, token, type } = job.data;
 
     // 1. Chuẩn bị URL
-    const baseUrl = process.env.APP_BASE_URL;
+    const baseUrl =
+      process.env.APP_BASE_URL || 'https://be-momentupayment.onrender.com';
     const activationUrl = `${baseUrl}/auth/activate?token=${token}`;
 
     // 2. Xác định nội dung dựa trên loại email
