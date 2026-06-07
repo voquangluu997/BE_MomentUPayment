@@ -2,6 +2,9 @@ import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import * as nodemailer from 'nodemailer';
 
+// Node 18+ provides global `fetch`; declare for TypeScript
+declare const fetch: any;
+
 @Processor('mail-queue')
 export class MailProcessor {
   private transporter;
@@ -19,12 +22,44 @@ export class MailProcessor {
       connectionTimeout: 20000, // 20 giây chờ kết nối socket (mặc định rất ngắn)
       greetingTimeout: 20000, // 20 giây chờ phản hồi chào hỏi từ SMTP Server
       socketTimeout: 30000,
-      family: 4, // Buộc sử dụng IPv4 để tránh lỗi DNS lookup trong môi trường có IPv6 không ổn định
       tls: {
         rejectUnauthorized: false,
         minVersion: 'TLSv1.2',
       },
-    } as any);
+    });
+  }
+
+  private async sendViaResend(
+    to: string,
+    subject: string,
+    htmlContent: string,
+    from?: string,
+  ) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error('RESEND_API_KEY not configured');
+
+    const payload = {
+      from: from || process.env.MAIL_FROM || 'onboarding@resend.dev',
+      to: [to],
+      subject,
+      html: htmlContent,
+    };
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Resend API error ${res.status}: ${text}`);
+    }
+
+    return res.json();
   }
 
   @Process('send-activation-email')
@@ -46,20 +81,30 @@ export class MailProcessor {
     const htmlContent = isReminder
       ? this.getReminderEmailTemplate(activationUrl)
       : this.getWelcomeEmailTemplate(activationUrl);
-    let to = 'voquangluu997@gmail.com';
+    // keep test recipient hard-coded per request
+    const to = 'voquangluu997@gmail.com';
+    const from =
+      process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
 
-    // 3. Gửi mail
+    // Prefer Resend API (avoids SMTP port/network blocks on cloud hosts)
     try {
+      if (process.env.RESEND_API_KEY) {
+        await this.sendViaResend(to, subject, htmlContent, from as string);
+        console.log(`✉️ Success (Resend): [${type}] email sent to [${to}]`);
+        return;
+      }
+
+      // Fallback to SMTP transporter for local/dev
       await this.transporter.sendMail({
-        from: '"Moments U Payment" <onboarding@resend.dev>',
-        to: to, // Đã sửa: Gửi đúng email người dùng
-        subject: subject,
+        from,
+        to,
+        subject,
         html: htmlContent,
       });
 
-      console.log(`✉️ Success: [${type}] email sent to [${email}]`);
+      console.log(`✉️ Success (SMTP): [${type}] email sent to [${to}]`);
     } catch (error) {
-      console.error(`❌ Failed to send [${type}] email to [${email}]:`, error);
+      console.error(`❌ Failed to send [${type}] email to [${to}]:`, error);
       throw error;
     }
   }
@@ -67,14 +112,11 @@ export class MailProcessor {
   @Process('send-reset-password-email')
   async handleSendResetPassword(job: Job<{ email: string; otp: string }>) {
     const { email, otp } = job.data;
-    const from = '"Moments U Payment" <onboarding@resend.dev>';
-    let to = 'voquangluu997@gmail.com';
+    const from =
+      process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
+    const to = 'voquangluu997@gmail.com';
 
-    await this.transporter.sendMail({
-      from: from,
-      to: to,
-      subject: '🔑 Your Security Code for Moments U Payment',
-      html: `
+    const html = `
         <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
           <h2>Hello there!</h2>
           <p>Someone requested to reset your password. If it was you, please use this code:</p>
@@ -83,10 +125,31 @@ export class MailProcessor {
           </div>
           <p>This code will expire in 15 minutes. If you didn't request this, please ignore this email.</p>
         </div>
-      `,
-    });
+      `;
 
-    console.log(`✉️ Reset password OTP sent to: ${email}`);
+    try {
+      if (process.env.RESEND_API_KEY) {
+        await this.sendViaResend(
+          to,
+          '🔑 Your Security Code for Moments U Payment',
+          html,
+          from as string,
+        );
+        console.log(`✉️ Reset OTP sent (Resend) to: ${to}`);
+        return;
+      }
+
+      await this.transporter.sendMail({
+        from,
+        to,
+        subject: '🔑 Your Security Code for Moments U Payment',
+        html,
+      });
+      console.log(`✉️ Reset password OTP sent (SMTP) to: ${to}`);
+    } catch (error) {
+      console.error(`❌ Failed to send reset OTP to [${to}]:`, error);
+      throw error;
+    }
   }
 
   // --- Các hàm template riêng biệt ---
