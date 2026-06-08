@@ -178,6 +178,7 @@ export class AuthService {
         googleId: googleUser.sub,
         isEmailVerified: true,
       });
+     
     } else {
       // 💡 Không ghi đè password hiện tại nếu user đã reset mật khẩu trước đó
       user = await this.userService.updateUser(user.id, {

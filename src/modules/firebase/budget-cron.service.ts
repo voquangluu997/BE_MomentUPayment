@@ -249,7 +249,7 @@ export class BudgetCronService {
    * 🧹 TỰ ĐỘNG DỌN DẸP ẢNH RÁC (Orphaned Images)
    * Chạy lúc 2 giờ sáng hàng ngày
    */
-  @Cron('0 2 * * *')
+  // @Cron('0 2 * * *')
   async handleCleanupOrphanedImages() {
     this.logger.log('🧹 Bắt đầu tiến trình dọn dẹp ảnh rác trên Cloudinary...');
     try {
