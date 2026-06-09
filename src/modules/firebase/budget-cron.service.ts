@@ -11,7 +11,6 @@ import { InjectQueue } from '@nestjs/bull';
 export class BudgetCronService {
   private readonly logger = new Logger(BudgetCronService.name);
 
-  // 🚀 CẬP NHẬT: Danh sách đầy đủ các huy hiệu định kỳ hàng tháng cần reset
   private readonly MONTHLY_BADGES = [
     'budgetMaster',
     'topSpender',
@@ -32,6 +31,43 @@ export class BudgetCronService {
     private readonly notificationService: NotificationService,
     @InjectQueue('mail-queue') private mailQueue: Queue,
   ) {}
+
+  // =========================================================================
+  // 🛠️ HELPER: TÍNH TOÁN NGÀY THÁNG CHUẨN MÚI GIỜ (TRÁNH LỖI SERVER UTC)
+  // =========================================================================
+  private getMonthBoundaries(offsetHours: number = 7, date: Date = new Date()) {
+    const localTime = new Date(date.getTime() + offsetHours * 60 * 60 * 1000);
+    const year = localTime.getUTCFullYear();
+    const month = localTime.getUTCMonth();
+
+    const startOfMonth = new Date(
+      Date.UTC(year, month, 1, -offsetHours, 0, 0, 0),
+    );
+    const endOfMonth = new Date(
+      Date.UTC(year, month + 1, 0, 23 - offsetHours, 59, 59, 999),
+    );
+
+    return { startOfMonth, endOfMonth };
+  }
+
+  private getLastMonthBoundaries(
+    offsetHours: number = 7,
+    date: Date = new Date(),
+  ) {
+    const localTime = new Date(date.getTime() + offsetHours * 60 * 60 * 1000);
+    const year = localTime.getUTCFullYear();
+    const month = localTime.getUTCMonth();
+
+    const startOfLastMonth = new Date(
+      Date.UTC(year, month - 1, 1, -offsetHours, 0, 0, 0),
+    );
+    const endOfLastMonth = new Date(
+      Date.UTC(year, month, 0, 23 - offsetHours, 59, 59, 999),
+    );
+
+    return { startOfLastMonth, endOfLastMonth };
+  }
+  // =========================================================================
 
   /**
    * ⏰ Tự động quét ví sinh tồn vào 12:00 trưa hàng ngày
@@ -86,17 +122,9 @@ export class BudgetCronService {
       return { remainingPercent: 1, overspentAmount: '0' };
 
     const budgetLimit = user.budgetLimit;
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
+
+    // 🚀 ĐÃ SỬA: Lấy biên thời gian đầu/cuối tháng theo chuẩn giờ Việt Nam (+7)
+    const { startOfMonth, endOfMonth } = this.getMonthBoundaries(7);
 
     const transactions = await this.prisma.transaction.aggregate({
       where: { userId, spentAt: { gte: startOfMonth, lte: endOfMonth } },
@@ -153,22 +181,13 @@ export class BudgetCronService {
 
       if (usersToNotify.length === 0) return;
 
-      const now = new Date();
-      const startOfLastMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() - 1,
-        1,
-      );
-      const endOfLastMonth = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
-      const lastMonthStr = (startOfLastMonth.getMonth() + 1).toString();
+      // 🚀 ĐÃ SỬA: Lấy biên thời gian đầu/cuối của tháng trước theo chuẩn giờ Việt Nam (+7)
+      const { startOfLastMonth, endOfLastMonth } =
+        this.getLastMonthBoundaries(7);
+
+      // Lấy số của tháng trước để hiển thị lên App
+      // Lưu ý: Do getUTCMonth() trả về từ 0-11, nên cộng thêm 1 là chuẩn xác
+      const lastMonthStr = (startOfLastMonth.getUTCMonth() + 1).toString();
 
       const usersSpending = await this.prisma.transaction.groupBy({
         by: ['userId'],
@@ -247,13 +266,10 @@ export class BudgetCronService {
 
   /**
    * 🧹 TỰ ĐỘNG DỌN DẸP ẢNH RÁC (Orphaned Images)
-   * Chạy lúc 2 giờ sáng hàng ngày
    */
-  // @Cron('0 2 * * *')
   async handleCleanupOrphanedImages() {
     this.logger.log('🧹 Bắt đầu tiến trình dọn dẹp ảnh rác trên Cloudinary...');
     try {
-      // 1. Lấy danh sách tất cả URL ảnh đang có trong database (trong 7 ngày gần đây)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -267,19 +283,15 @@ export class BudgetCronService {
 
       const usedUrls = new Set(usedTransactions.map((t) => t.imageUrl));
 
-      // 2. Lấy danh sách ảnh từ Cloudinary (theo folder đã định nghĩa)
-      // Lưu ý: Cần cấu hình Cloudinary Search API hoặc list resources
       const resources = await cloudinary.api.resources({
         type: 'upload',
-        prefix: 'moment_u_payment/', // Thư mục của app
+        prefix: 'moment_u_payment/',
         max_results: 100,
       });
 
       let deleteCount = 0;
       for (const resource of resources.resources) {
-        // Kiểm tra xem ảnh trên Cloud có nằm trong list ảnh đang sử dụng không
         if (!usedUrls.has(resource.secure_url)) {
-          // 3. Xóa ảnh không sử dụng
           await cloudinary.uploader.destroy(resource.public_id);
           this.logger.log(`🗑️ Đã xóa ảnh rác: ${resource.public_id}`);
           deleteCount++;
@@ -293,7 +305,7 @@ export class BudgetCronService {
   }
 
   /**
-   * ⏰ Cronjob Dọn dẹp tài khoản chưa xác thực (Chạy 3h sáng hàng ngày)
+   * ⏰ Cronjob Dọn dẹp tài khoản chưa xác thực
    */
   @Cron('0 3 * * *')
   async handleCleanupUnverifiedAccounts() {
@@ -302,7 +314,6 @@ export class BudgetCronService {
     );
     const now = new Date();
 
-    // Tìm các user chưa xác thực
     const unverifiedUsers = await this.prisma.user.findMany({
       where: { isEmailVerified: false },
       select: {
@@ -318,12 +329,9 @@ export class BudgetCronService {
       const diffTime = Math.abs(now.getTime() - user.createdAt.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // 1. Nhắc nhở trước 48h (tức là sau 28 ngày)
       if (diffDays === 28) {
         await this.sendVerificationReminder(user);
       }
-
-      // 2. Xóa tài khoản sau 30 ngày
       if (diffDays >= 30) {
         await this.deleteUnverifiedAccount(user);
       }

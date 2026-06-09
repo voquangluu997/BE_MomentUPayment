@@ -105,17 +105,20 @@ export class TransactionService {
   /**
    * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục
    */
+  /**
+   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục
+   */
   async getAnalytics(userId: string, startDate?: string, endDate?: string) {
     let start: Date;
     let end: Date;
 
     if (startDate && endDate) {
+      // ✅ CHỈ CẦN PARSE STRING THÀNH DATE.
+      // Dữ liệu từ Flutter gửi lên đã được căn đúng 00:00:00 và 23:59:59 (theo UTC tương đối)
       start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-
       end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
     } else {
+      // Default: Tính thống kê của tháng hiện tại
       const now = new Date();
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);

@@ -88,8 +88,22 @@ export class FirebaseAdminService {
       [key: string]: any;
     },
   ) {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    // 🚀 ĐÃ SỬA: Lấy mốc 00:00:00 hôm nay theo giờ Việt Nam (+7) thay vì Server UTC
+    const offsetHours = 7;
+    const now = new Date();
+    const localTime = new Date(now.getTime() + offsetHours * 60 * 60 * 1000);
+    const startOfToday = new Date(
+      Date.UTC(
+        localTime.getUTCFullYear(),
+        localTime.getUTCMonth(),
+        localTime.getUTCDate(),
+        -offsetHours,
+        0,
+        0,
+        0,
+      ),
+    );
+
     const dictionaryItem = this.notificationDictionary[messageKey];
 
     if (!dictionaryItem) {
@@ -97,7 +111,7 @@ export class FirebaseAdminService {
       return;
     }
 
-    // 1. Kiểm tra spam thông báo trong ngày (🚀 CHỈ ĐỂ ĐÁNH DẤU CỜ, KHÔNG RETURN SỚM)
+    // 1. Kiểm tra spam thông báo trong ngày (Chỉ để đánh dấu cờ, không Return sớm)
     let isSpam = false;
     if (dictionaryItem.inApp.type.startsWith('budget')) {
       const existingNotification = await this.prisma.notification.findFirst({
@@ -166,13 +180,13 @@ export class FirebaseAdminService {
       return;
     }
 
-    // 🛑 Kiểm tra 2: Tôn trọng cài đặt cá nhân của user (Đã dời xuống đây để bảo toàn In-App)
+    // 🛑 Kiểm tra 2: Tôn trọng cài đặt cá nhân của user
     if (
       dictionaryItem.inApp.type.startsWith('budget') &&
       user.notiBudgetAlerts === false
     ) {
       this.logger.log(
-        `🤫 User ${userId} đã tắt nhận thông báo chi tiêu qua điện thoại. Hủy lệnh gửi PUSH Firebase.`,
+        `🤫 User ${userId} đã tắt nhận thông báo chi tiêu. Hủy lệnh gửi PUSH Firebase.`,
       );
       return;
     }
@@ -187,7 +201,7 @@ export class FirebaseAdminService {
     const userLang = user.language === 'en' ? 'en' : 'vi';
     const translation = dictionaryItem[userLang];
 
-    // ✨ Parse các biến {{key}} trong title và body thành dữ liệu thực tế
+    // ✨ Parse các biến {{key}} trong title và body
     let pushTitle = translation.title;
     let pushBody = translation.body;
 
@@ -207,7 +221,7 @@ export class FirebaseAdminService {
       },
       data: {
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
-        ...data, // Nhét thêm data ẩn
+        ...data,
       },
       android: {
         priority: 'high',
