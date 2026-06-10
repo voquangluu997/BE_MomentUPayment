@@ -32,9 +32,6 @@ export class BudgetCronService {
     @InjectQueue('mail-queue') private mailQueue: Queue,
   ) {}
 
-  // =========================================================================
-  // 🛠️ HELPER: TÍNH TOÁN NGÀY THÁNG CHUẨN MÚI GIỜ (TRÁNH LỖI SERVER UTC)
-  // =========================================================================
   private getMonthBoundaries(offsetHours: number = 7, date: Date = new Date()) {
     const localTime = new Date(date.getTime() + offsetHours * 60 * 60 * 1000);
     const year = localTime.getUTCFullYear();
@@ -67,10 +64,9 @@ export class BudgetCronService {
 
     return { startOfLastMonth, endOfLastMonth };
   }
-  // =========================================================================
 
   /**
-   * ⏰ Tự động quét ví sinh tồn vào 12:00 trưa hàng ngày
+   * ⏰ Tự động quét ví sinh tồn vào 12:00 trưa hàng ngày - ĐÃ TỐI ƯU CỰC HẠN (CHỈ DÙNG 2 QUERIES)
    */
   @Cron(CronExpression.EVERY_DAY_AT_NOON)
   async handleSurvivalBudgetAlert() {
@@ -78,20 +74,56 @@ export class BudgetCronService {
       '🚀 [Moments u Payment] Tiến trình quét ví sinh tồn bắt đầu...',
     );
     try {
+      // Tối ưu 1: Lấy luôn budgetLimit tại đây, loại bỏ hàm findUnique riêng lẻ trong vòng lặp
       const activeUsers = await this.prisma.user.findMany({
-        where: { fcmToken: { not: null } },
+        where: {
+          fcmToken: { not: null },
+          budgetLimit: { not: null, gt: 0 },
+        },
+        select: { id: true, budgetLimit: true },
       });
 
       if (!activeUsers || activeUsers.length === 0) return;
 
+      const userIds = activeUsers.map((u) => u.id);
+      const { startOfMonth, endOfMonth } = this.getMonthBoundaries(7);
+
+      // Tối ưu 2: Gom toàn bộ lượt truy vấn giao dịch của TẤT CẢ user thành 1 câu lệnh duy nhất (GroupBy)
+      const totalSpentGroup = await this.prisma.transaction.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: userIds },
+          spentAt: { gte: startOfMonth, lte: endOfMonth },
+        },
+        _sum: { amount: true },
+      });
+
+      // Map để tra cứu nhanh chi phí của từng user với độ phức tạp O(1)
+      const spentMap = new Map<string, number>();
+      for (const item of totalSpentGroup) {
+        spentMap.set(item.userId, item._sum.amount || 0);
+      }
+
       let alertCount = 0;
       for (const user of activeUsers) {
-        const budgetStatus = await this.calculateUserBudget(user.id);
-        if (budgetStatus.remainingPercent > 0.15) continue;
+        const budgetLimit = user.budgetLimit || 0;
+        const totalSpent = spentMap.get(user.id) || 0;
+
+        const remainingAmount = budgetLimit - totalSpent;
+        const remainingPercent = remainingAmount / budgetLimit;
+
+        if (remainingPercent > 0.15) continue;
 
         let messageKey: 'AM_QUY' | 'THO_OXY' | 'SAP_CAN' = 'SAP_CAN';
-        if (budgetStatus.remainingPercent < 0) messageKey = 'AM_QUY';
-        else if (budgetStatus.remainingPercent <= 0.1) messageKey = 'THO_OXY';
+        if (remainingPercent < 0) messageKey = 'AM_QUY';
+        else if (remainingPercent <= 0.1) messageKey = 'THO_OXY';
+
+        let overspentAmountStr = '0';
+        if (remainingAmount < 0) {
+          overspentAmountStr = new Intl.NumberFormat('en-US').format(
+            Math.abs(remainingAmount),
+          );
+        }
 
         await this.firebaseAdminService.sendLocalizedNotification(
           user.id,
@@ -99,7 +131,7 @@ export class BudgetCronService {
           {
             click_action: 'FLUTTER_NOTIFICATION_CLICK',
             screen: 'budget_analytics',
-            overspentAmount: budgetStatus.overspentAmount,
+            overspentAmount: overspentAmountStr,
           },
         );
         alertCount++;
@@ -110,58 +142,33 @@ export class BudgetCronService {
     }
   }
 
-  private async calculateUserBudget(
-    userId: string,
-  ): Promise<{ remainingPercent: number; overspentAmount: string }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { budgetLimit: true },
-    });
-
-    if (!user || !user.budgetLimit)
-      return { remainingPercent: 1, overspentAmount: '0' };
-
-    const budgetLimit = user.budgetLimit;
-
-    // 🚀 ĐÃ SỬA: Lấy biên thời gian đầu/cuối tháng theo chuẩn giờ Việt Nam (+7)
-    const { startOfMonth, endOfMonth } = this.getMonthBoundaries(7);
-
-    const transactions = await this.prisma.transaction.aggregate({
-      where: { userId, spentAt: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-    });
-
-    const totalSpent = transactions._sum.amount || 0;
-    const remainingAmount = budgetLimit - totalSpent;
-    const remainingPercent = remainingAmount / budgetLimit;
-
-    let overspentAmountStr = '0';
-    if (remainingAmount < 0) {
-      overspentAmountStr = new Intl.NumberFormat('en-US').format(
-        Math.abs(remainingAmount),
-      );
-    }
-
-    return { remainingPercent, overspentAmount: overspentAmountStr };
-  }
-
   /**
-   * ⏰ Cronjob Thống kê tháng (Local Time)
+   * ⏰ Cronjob Thống kê tháng (Local Time) - ĐÃ TỐI ƯU CỨU NGUY QUOTA TIÊU HAO HÀNG GIỜ
    */
   @Cron(CronExpression.EVERY_HOUR)
   async generateMonthlySummary() {
     try {
-      const activeUsers = await this.prisma.user.findMany({
-        where: { fcmToken: { not: null } },
-        select: { id: true, timezone: true },
-      });
+      // Danh sách các múi giờ chính toàn cầu để kiểm tra trước bằng bộ nhớ đệm CPU
+      const commonTimezones = [
+        'Asia/Ho_Chi_Minh',
+        'Asia/Bangkok',
+        'Asia/Singapore',
+        'Asia/Tokyo',
+        'Asia/Seoul',
+        'Asia/Hong_Kong',
+        'Europe/London',
+        'Europe/Paris',
+        'America/New_York',
+        'America/Chicago',
+        'America/Los_Angeles',
+        'UTC',
+      ];
 
-      const usersToNotify: string[] = [];
-      for (const user of activeUsers) {
-        const userTz = user.timezone || 'Asia/Ho_Chi_Minh';
+      // Bước 1: Lọc bằng thuật toán JS xem thời điểm hiện tại có trùng vào ngày 1 lúc 9h sáng của múi giờ nào không
+      const targetTimezones = commonTimezones.filter((tz) => {
         try {
           const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: userTz,
+            timeZone: tz,
             hour: 'numeric',
             day: 'numeric',
             hour12: false,
@@ -175,18 +182,29 @@ export class BudgetCronService {
             parts.find((p) => p.type === 'hour')?.value || '0',
             10,
           );
-          if (d === 1 && h === 9) usersToNotify.push(user.id);
-        } catch (e) {}
-      }
+          return d === 1 && h === 9;
+        } catch {
+          return false;
+        }
+      });
 
-      if (usersToNotify.length === 0) return;
+      // 🔥 SIÊU TỐI ƯU: Nếu không có múi giờ nào trúng thời điểm vàng, THOÁT NGAY LẬP TỨC. Tốn đúng 0 lượt đọc DB!
+      if (targetTimezones.length === 0) return;
 
-      // 🚀 ĐÃ SỬA: Lấy biên thời gian đầu/cuối của tháng trước theo chuẩn giờ Việt Nam (+7)
+      // Bước 2: Chỉ khi có múi giờ trùng khớp, mới vào DB quét những user thuộc múi giờ đó
+      const activeUsers = await this.prisma.user.findMany({
+        where: {
+          fcmToken: { not: null },
+          timezone: { in: targetTimezones },
+        },
+        select: { id: true, timezone: true },
+      });
+
+      if (activeUsers.length === 0) return;
+
+      const usersToNotify = activeUsers.map((u) => u.id);
       const { startOfLastMonth, endOfLastMonth } =
         this.getLastMonthBoundaries(7);
-
-      // Lấy số của tháng trước để hiển thị lên App
-      // Lưu ý: Do getUTCMonth() trả về từ 0-11, nên cộng thêm 1 là chuẩn xác
       const lastMonthStr = (startOfLastMonth.getUTCMonth() + 1).toString();
 
       const usersSpending = await this.prisma.transaction.groupBy({
