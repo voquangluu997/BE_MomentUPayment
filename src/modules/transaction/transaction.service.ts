@@ -281,4 +281,62 @@ export class TransactionService {
       });
     }
   }
+
+  async getAllSplurges(
+    userId: string,
+    startDate?: string,
+    endDate?: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    let start: Date;
+    let end: Date;
+
+    // Tương tự logic thời gian của getAnalytics
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+    } else {
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    try {
+      const skipRecords = (page - 1) * limit;
+
+      const splurges = await this.prisma.transaction.findMany({
+        where: {
+          userId: userId,
+          spentAt: { gte: start, lte: end },
+        },
+        orderBy: { amount: 'desc' }, // Sắp xếp theo số tiền giảm dần (quan trọng nhất)
+        skip: skipRecords,
+        take: limit,
+        select: {
+          id: true,
+          amount: true,
+          spentAt: true,
+          imageUrl: true,
+          category: true,
+          emoji: true,
+          note: true, // Lấy thêm note để hiện caption cho ảnh
+        },
+      });
+
+      return splurges.map((tx) => ({
+        id: tx.id.toString(),
+        amount: tx.amount,
+        date: tx.spentAt,
+        imageUrl: tx.imageUrl,
+        emoji: tx.emoji || '✨',
+        note: tx.note || '',
+      }));
+    } catch (error) {
+      this.logger.error('Failed to fetch all splurges', error);
+      throw new InternalServerErrorException(
+        'Không thể tải danh sách chi tiêu khủng của bạn',
+      );
+    }
+  }
 }

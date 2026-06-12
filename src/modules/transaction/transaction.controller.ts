@@ -94,11 +94,57 @@ export class TransactionController {
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
-    // API nay giờ sẽ trả về { categories, biggestSplurges, diaryInsight }
+    // API này giờ sẽ trả về { categories, biggestSplurges, diaryInsight }
     return await this.transactionService.getAnalytics(
       userId,
       startDate,
       endDate,
+    );
+  }
+
+  // =========================================================================
+  // ✨ NEW API: SEE ALL BIGGEST SPLURGES
+  // =========================================================================
+  @Get('splurges')
+  @ApiOperation({
+    summary:
+      'Lấy toàn bộ danh sách chi tiêu khủng (Hall of Fame) có phân trang',
+  })
+  @ApiQuery({ name: 'startDate', required: false, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'YYYY-MM-DD' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    example: 1,
+    description: 'Số trang',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Số phần tử mỗi trang',
+  })
+  async getAllSplurges(
+    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
+    }
+
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+
+    return await this.transactionService.getAllSplurges(
+      userId,
+      startDate,
+      endDate,
+      pageNum,
+      limitNum,
     );
   }
 
