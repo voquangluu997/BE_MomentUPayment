@@ -5,7 +5,7 @@ import {
   Body,
   Param,
   Delete,
-  Put, // 🔑 THÊM PUT VÀO IMPORT
+  Put,
   UseGuards,
   Req,
   NotFoundException,
@@ -80,7 +80,9 @@ export class TransactionController {
   }
 
   @Get('analytics')
-  @ApiOperation({ summary: 'Lấy dữ liệu thống kê chi tiêu theo danh mục' })
+  @ApiOperation({
+    summary: 'Lấy dữ liệu thống kê toàn diện (Danh mục, Splurges, Insights)',
+  })
   @ApiQuery({ name: 'startDate', required: false, description: 'YYYY-MM-DD' })
   @ApiQuery({ name: 'endDate', required: false, description: 'YYYY-MM-DD' })
   async getAnalytics(
@@ -92,6 +94,7 @@ export class TransactionController {
     if (!userId) {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
+    // API nay giờ sẽ trả về { categories, biggestSplurges, diaryInsight }
     return await this.transactionService.getAnalytics(
       userId,
       startDate,
@@ -99,10 +102,9 @@ export class TransactionController {
     );
   }
 
-  // 🔑 HÀM MỚI: CẬP NHẬT GIAO DỊCH
   @Put(':id')
   @ApiOperation({ summary: 'Cập nhật thông tin giao dịch' })
-  @ApiBody({ type: CreateTransactionDto }) // Bạn có thể tạo UpdateTransactionDto nếu muốn
+  @ApiBody({ type: CreateTransactionDto })
   async update(
     @Param('id') id: string,
     @Body() updateTransactionDto: CreateTransactionDto,
@@ -113,7 +115,6 @@ export class TransactionController {
       throw new NotFoundException('Không tìm thấy thông tin người dùng!');
     }
 
-    // Xử lý id dạng number hoặc string tùy vào DB của bạn
     const transactionId = isNaN(Number(id)) ? id : Number(id);
 
     return await this.transactionService.update(

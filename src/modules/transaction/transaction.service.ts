@@ -103,45 +103,98 @@ export class TransactionService {
   }
 
   /**
-   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục
-   */
-  /**
-   * 📊 Lấy dữ liệu thống kê chi tiêu theo danh mục
+   * 📊 Lấy dữ liệu thống kê CHI TIẾT (Categories, Splurges, Insights)
    */
   async getAnalytics(userId: string, startDate?: string, endDate?: string) {
     let start: Date;
     let end: Date;
 
     if (startDate && endDate) {
-      // ✅ CHỈ CẦN PARSE STRING THÀNH DATE.
-      // Dữ liệu từ Flutter gửi lên đã được căn đúng 00:00:00 và 23:59:59 (theo UTC tương đối)
       start = new Date(startDate);
       end = new Date(endDate);
     } else {
-      // Default: Tính thống kê của tháng hiện tại
       const now = new Date();
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     }
 
     try {
-      const groups = await this.prisma.transaction.groupBy({
-        by: ['category'],
-        where: {
-          userId: userId,
-          spentAt: { gte: start, lte: end },
-        },
-        _sum: { amount: true },
-        _max: { emoji: true },
-      });
+      // Chạy song song 2 queries lớn để tối ưu tốc độ phản hồi
+      const [groupedData, biggestSplurges] = await Promise.all([
+        // 1. Lấy dữ liệu gom nhóm biểu đồ tròn
+        this.prisma.transaction.groupBy({
+          by: ['category'],
+          where: {
+            userId: userId,
+            spentAt: { gte: start, lte: end },
+          },
+          _sum: { amount: true },
+          _max: { emoji: true },
+        }),
 
-      const formattedData = groups.map((item) => ({
-        category: item.category,
-        emoji: item._max.emoji || '📝',
-        totalAmount: item._sum.amount || 0,
-      }));
+        // 2. Lấy Top 5 khoản chi lớn nhất CÓ ẢNH cho phần My Biggest Splurges
+        this.prisma.transaction.findMany({
+          where: {
+            userId: userId,
+            spentAt: { gte: start, lte: end },
+            imageUrl: { not: null, notIn: [''] }, // Lọc có ảnh
+          },
+          orderBy: { amount: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            amount: true,
+            spentAt: true,
+            imageUrl: true,
+            category: true,
+          },
+        }),
+      ]);
 
-      return formattedData.sort((a, b) => b.totalAmount - a.totalAmount);
+      // Xử lý dữ liệu biểu đồ
+      const formattedCategories = groupedData
+        .map((item) => ({
+          category: item.category,
+          emoji: item._max.emoji || '📝',
+          totalAmount: item._sum.amount || 0,
+        }))
+        .sort((a, b) => b.totalAmount - a.totalAmount);
+
+      // Xử lý Diary Insight (Tìm danh mục chi nhiều nhất)
+      let insightData = null;
+      const totalPeriodSpending = formattedCategories.reduce(
+        (sum, item) => sum + item.totalAmount,
+        0,
+      );
+
+      if (formattedCategories.length > 0 && totalPeriodSpending > 0) {
+        const topCat1 = formattedCategories[0];
+        const topCat2 =
+          formattedCategories.length > 1 ? formattedCategories[1] : null;
+
+        const topAmount =
+          topCat1.totalAmount + (topCat2 ? topCat2.totalAmount : 0);
+        const percent = ((topAmount / totalPeriodSpending) * 100).toFixed(0);
+
+        insightData = {
+          percent: percent,
+          category1: topCat1.category,
+          category2: topCat2 ? topCat2.category : null,
+          totalPeriodSpending: totalPeriodSpending,
+        };
+      }
+
+      // Trả về Object chuẩn hóa
+      return {
+        categories: formattedCategories,
+        biggestSplurges: biggestSplurges.map((tx) => ({
+          id: tx.id.toString(),
+          amount: tx.amount,
+          date: tx.spentAt,
+          imageUrl: tx.imageUrl,
+        })),
+        diaryInsight: insightData,
+      };
     } catch (error) {
       this.logger.error('Failed to generate analytics', error);
       throw new InternalServerErrorException(
@@ -180,7 +233,7 @@ export class TransactionService {
   }
 
   /**
-   * 🚨 Kiểm tra ngân sách và tạo thông báo chuẩn đa ngôn ngữ
+   * 🚨 Kiểm tra ngân sách và tạo thông báo
    */
   private async checkBudgetAndNotify(userId: string, transactionDate: Date) {
     const now = new Date();
@@ -188,7 +241,6 @@ export class TransactionService {
       transactionDate.getMonth() === now.getMonth() &&
       transactionDate.getFullYear() === now.getFullYear();
 
-    // Nếu thêm/sửa transaction của tháng trước (hoặc tháng khác), bỏ qua không gửi thông báo
     if (!isCurrentMonth) return;
 
     const user = await this.prisma.user.findUnique({
@@ -200,7 +252,6 @@ export class TransactionService {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // ✨ Tối ưu hóa: Dùng aggregate để Database tự tính tổng tiền, thay vì kéo cả mảng data về server
     const transactionsThisMonth = await this.prisma.transaction.aggregate({
       where: {
         userId,
@@ -217,7 +268,6 @@ export class TransactionService {
 
     const budgetNameKey = 'monthBudget';
 
-    // ✨ Chỉ cần gọi FirebaseService là đủ, nó đã bao thầu cả Push lẫn In-App
     if (percentage >= 100) {
       await this.firebaseService.sendLocalizedNotification(userId, 'AM_QUY', {
         budgetName: budgetNameKey,
