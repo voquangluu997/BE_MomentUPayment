@@ -51,12 +51,28 @@ export class TransactionService {
   /**
    * ✨ Lấy lịch sử chi tiêu kèm phân trang (Lazy Load)
    */
-  async findAllByUser(userId: string, page: number = 1, limit: number = 15) {
+  async findAllByUser(
+    userId: string,
+    page: number = 1,
+    limit: number = 15,
+    startDate?: string,
+    endDate?: string,
+  ) {
     try {
       const skipRecords = (page - 1) * limit;
 
+      // Xây dựng điều kiện truy vấn linh hoạt
+      const whereCondition: any = { userId: userId };
+
+      if (startDate && endDate) {
+        whereCondition.spentAt = {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        };
+      }
+
       return await this.prisma.transaction.findMany({
-        where: { userId: userId },
+        where: whereCondition,
         orderBy: { spentAt: 'desc' },
         skip: skipRecords,
         take: limit,
@@ -320,7 +336,7 @@ export class TransactionService {
           imageUrl: true,
           category: true,
           emoji: true,
-          note: true, // Lấy thêm note để hiện caption cho ảnh
+          note: true,
         },
       });
 

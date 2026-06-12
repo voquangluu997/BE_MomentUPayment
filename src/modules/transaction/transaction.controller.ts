@@ -46,7 +46,17 @@ export class TransactionController {
   @Get()
   @ApiOperation({
     summary:
-      'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại (Có phân trang)',
+      'Lấy danh sách lịch sử chi tiêu của tài khoản hiện tại (Có phân trang và lọc theo thời gian)',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Ngày bắt đầu (Chuỗi ISO-8601 hoặc YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Ngày kết thúc (Chuỗi ISO-8601 hoặc YYYY-MM-DD)',
   })
   @ApiQuery({
     name: 'page',
@@ -64,6 +74,8 @@ export class TransactionController {
     @Req() req: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     const userId = req.user?.id;
     if (!userId) {
@@ -76,6 +88,8 @@ export class TransactionController {
       userId,
       pageNum,
       limitNum,
+      startDate,
+      endDate,
     );
   }
 
