@@ -132,12 +132,12 @@ export class TransactionService {
           _max: { emoji: true },
         }),
 
-        // 2. Lấy Top 5 khoản chi lớn nhất CÓ ẢNH cho phần My Biggest Splurges
+        // 2. Lấy Top 5 khoản chi lớn nhất (Đã bỏ bộ lọc bắt buộc CÓ ẢNH để giao diện dùng fallback Emoji)
         this.prisma.transaction.findMany({
           where: {
             userId: userId,
             spentAt: { gte: start, lte: end },
-            imageUrl: { not: null, notIn: [''] }, // Lọc có ảnh
+            // Đã xóa dòng imageUrl: { not: null... } ở đây
           },
           orderBy: { amount: 'desc' },
           take: 5,
@@ -147,6 +147,7 @@ export class TransactionService {
             spentAt: true,
             imageUrl: true,
             category: true,
+            emoji: true, // Lấy thêm trường emoji từ DB
           },
         }),
       ]);
@@ -192,6 +193,7 @@ export class TransactionService {
           amount: tx.amount,
           date: tx.spentAt,
           imageUrl: tx.imageUrl,
+          emoji: tx.emoji || '✨', // Ánh xạ trường emoji vào mảng trả về (có fallback)
         })),
         diaryInsight: insightData,
       };
@@ -202,7 +204,6 @@ export class TransactionService {
       );
     }
   }
-
   /**
    * ✨ Cập nhật giao dịch
    */
