@@ -19,6 +19,7 @@ model User {
   isEmailVerified     Boolean        @default(false)
   verificationToken   String?        @unique
   googleId            String?        @unique
+  appleId             String?        @unique
   budgetLimit         Float?
   fcmToken            String?
   language            String         @default("vi")

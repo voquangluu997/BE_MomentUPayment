@@ -17,6 +17,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { AppleLoginDto } from './dto/apple-login.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -46,6 +47,14 @@ export class AuthController {
       throw new BadRequestException('Google access token is required.');
     }
     return this.authService.googleLogin(accessToken);
+  }
+
+  @Post('apple-login')
+  @ApiOperation({
+    summary: 'Đăng nhập hoặc Đăng ký nhanh thông qua Apple Identity Token',
+  })
+  async appleLogin(@Body() dto: AppleLoginDto) {
+    return this.authService.appleLogin(dto);
   }
 
   @Get('activate')

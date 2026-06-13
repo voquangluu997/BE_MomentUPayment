@@ -1,3 +1,4 @@
+import appleSignin from 'apple-signin-auth';
 import {
   Injectable,
   BadRequestException,
@@ -16,6 +17,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { AppleLoginDto } from './dto/apple-login.dto';
 
 @Injectable()
 export class AuthService {
@@ -178,7 +180,6 @@ export class AuthService {
         googleId: googleUser.sub,
         isEmailVerified: true,
       });
-     
     } else {
       // 💡 Không ghi đè password hiện tại nếu user đã reset mật khẩu trước đó
       user = await this.userService.updateUser(user.id, {
@@ -192,6 +193,71 @@ export class AuthService {
     return {
       success: true,
       message: 'Google login authenticated successfully.',
+      backend_jwt_token: backendToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        isEmailVerified: user.isEmailVerified,
+      },
+    };
+  }
+
+  // =========================================================================
+  // 3.5. ĐĂNG NHẬP BẰNG APPLE (APPLE LOGIN)
+  // =========================================================================
+  async appleLogin(dto: AppleLoginDto) {
+    let decodedAppleToken: any;
+
+    try {
+      // Xác thực token với máy chủ Apple
+      decodedAppleToken = await appleSignin.verifyIdToken(dto.identityToken, {
+        audience: process.env.APP_BUNDLE_ID,
+        ignoreExpiration: true, // Xoá dòng này đi khi đưa lên Production
+      });
+    } catch (error) {
+      throw new BadRequestException('error_apple_token_invalid');
+    }
+
+    const appleId = decodedAppleToken.sub;
+    const email = decodedAppleToken.email;
+
+    // Apple có tính năng "Hide My Email" (ẩn email thật),
+    // lúc này email sẽ có đuôi dạng @privaterelay.appleid.com
+    if (!email) {
+      throw new BadRequestException('error_apple_email_missing');
+    }
+
+    let user = await this.userService.findByEmail(email);
+
+    if (!user) {
+      // Xử lý nối tên do Apple gửi lên (chỉ có ở lần đăng nhập đầu)
+      let fullName = 'Apple User'; // Fallback name
+      if (dto.name && (dto.name.firstName || dto.name.lastName)) {
+        fullName =
+          `${dto.name.firstName || ''} ${dto.name.lastName || ''}`.trim();
+      }
+
+      user = await this.userService.createUser({
+        email: email,
+        name: fullName,
+        appleId: appleId, // Lưu Apple ID
+        isEmailVerified: true, // Email của Apple đã được xác thực
+      });
+    } else {
+      // Cập nhật appleId cho user hiện tại nếu họ dùng chung email
+      user = await this.userService.updateUser(user.id, {
+        appleId: appleId,
+        isEmailVerified: true,
+      } as any);
+    }
+
+    const backendToken = this.jwtService.sign({ userId: user.id });
+
+    return {
+      success: true,
+      message: 'Apple login authenticated successfully.',
       backend_jwt_token: backendToken,
       user: {
         id: user.id,

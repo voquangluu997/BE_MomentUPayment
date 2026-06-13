@@ -31,6 +31,7 @@ export class UserService {
     name?: string;
     avatar?: string;
     googleId?: string;
+    appleId?: string;
     verificationToken?: string;
     isEmailVerified?: boolean;
   }) {
