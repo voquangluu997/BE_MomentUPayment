@@ -367,7 +367,7 @@ export class BudgetCronService {
     }
 
     // 🚀 Bắn sự kiện thay vì đưa vào Queue
-    this.eventEmitter.emit('mail.send-activation-email', {
+    this.eventEmitter.emit('mail.send-activation', {
       email: user.email,
       token: user.verificationToken,
       type: 'reminder',

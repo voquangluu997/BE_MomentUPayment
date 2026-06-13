@@ -51,7 +51,7 @@ export class AuthService {
 
     // 2. Gửi mail "Fire and Forget" qua Event Emitter
     try {
-      this.eventEmitter.emit('mail.send-activation-email', {
+      this.eventEmitter.emit('mail.send-activation', {
         email: newUser.email,
         token: verificationToken,
         type: 'welcome',
@@ -325,7 +325,7 @@ export class AuthService {
     await this.userService.updateUser(user.id, { verificationToken: newToken });
 
     // 🚀 Bắn event thay vì add queue
-    this.eventEmitter.emit('mail.send-activation-email', {
+    this.eventEmitter.emit('mail.send-activation', {
       email: user.email,
       token: newToken,
     });
@@ -377,7 +377,7 @@ export class AuthService {
     } as any);
 
     // 🚀 Bắn event thay vì add queue
-    this.eventEmitter.emit('mail.send-reset-password-email', {
+    this.eventEmitter.emit('mail.send-reset-password', {
       email: user.email,
       otp: otp,
     });
