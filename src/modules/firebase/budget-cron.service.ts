@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter'; // 🚀 Import EventEmitter
 import { PrismaService } from '../../prisma/prisma.service';
 import { FirebaseAdminService } from './firebase-admin.service';
 import { NotificationService } from '../notifications/notification.service';
 import { v2 as cloudinary } from 'cloudinary';
-import { Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
 
 @Injectable()
 export class BudgetCronService {
@@ -29,7 +28,7 @@ export class BudgetCronService {
     private readonly prisma: PrismaService,
     private readonly firebaseAdminService: FirebaseAdminService,
     private readonly notificationService: NotificationService,
-    @InjectQueue('mail-queue') private mailQueue: Queue,
+    private readonly eventEmitter: EventEmitter2, // 🚀 Thay Queue bằng EventEmitter
   ) {}
 
   private getMonthBoundaries(offsetHours: number = 7, date: Date = new Date()) {
@@ -367,14 +366,14 @@ export class BudgetCronService {
       return;
     }
 
-    await this.mailQueue.add('send-activation-email', {
+    // 🚀 Bắn sự kiện thay vì đưa vào Queue
+    this.eventEmitter.emit('mail.send-activation-email', {
       email: user.email,
       token: user.verificationToken,
       type: 'reminder',
     });
-    this.logger.log(
-      `📧 Đã thêm job gửi mail nhắc nhở vào queue cho: ${user.email}`,
-    );
+
+    this.logger.log(`📧 Đã phát sự kiện gửi mail nhắc nhở cho: ${user.email}`);
   }
 
   private async deleteUnverifiedAccount(user: { id: string; email: string }) {

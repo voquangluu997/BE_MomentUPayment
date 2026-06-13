@@ -1,15 +1,13 @@
-import { Processor, Process } from '@nestjs/bull';
 import { Injectable } from '@nestjs/common';
-import { Job } from 'bull';
+import { OnEvent } from '@nestjs/event-emitter';
 import * as nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 
-// Node 18+ provides global `fetch`; declare for TypeScript
 declare const fetch: any;
 
-@Processor('mail-queue')
 @Injectable()
 export class MailProcessor {
+  // Hoặc đổi tên thành MailListener tùy ý bạn
   private transporter;
 
   constructor() {
@@ -22,8 +20,8 @@ export class MailProcessor {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
       },
-      connectionTimeout: 20000, // 20 giây chờ kết nối socket (mặc định rất ngắn)
-      greetingTimeout: 20000, // 20 giây chờ phản hồi chào hỏi từ SMTP Server
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
       socketTimeout: 30000,
       tls: {
         rejectUnauthorized: false,
@@ -56,11 +54,14 @@ export class MailProcessor {
     return data;
   }
 
-  @Process('send-activation-email')
-  async handleSendMail(
-    job: Job<{ email: string; token: string; type: 'welcome' | 'reminder' }>,
-  ) {
-    const { email, token, type } = job.data;
+  // 🚀 Đã chuyển đổi sang Event Listener nền (async: true giúp chạy non-blocking)
+  @OnEvent('mail.send-activation', { async: true })
+  async handleSendMail(payload: {
+    email: string;
+    token: string;
+    type: 'welcome' | 'reminder';
+  }) {
+    const { email, token, type } = payload;
 
     // 1. Chuẩn bị URL
     const baseUrl =
@@ -76,12 +77,12 @@ export class MailProcessor {
     const htmlContent = isReminder
       ? this.getReminderEmailTemplate(activationUrl)
       : this.getWelcomeEmailTemplate(activationUrl);
+
     // keep test recipient hard-coded per request
     const to = 'voquangluu997@gmail.com';
     const from =
       process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
 
-    // Prefer Resend API (avoids SMTP port/network blocks on cloud hosts)
     try {
       if (process.env.RESEND_API_KEY) {
         console.log(`✉️ Sending (Resend): [${type}] email sent to [${to}]`);
@@ -91,7 +92,6 @@ export class MailProcessor {
       }
       console.log(`✉️ Sending (smtp): [${type}] email sent to [${to}]`);
 
-      // Fallback to SMTP transporter for local/dev
       await this.transporter.sendMail({
         from,
         to,
@@ -106,9 +106,10 @@ export class MailProcessor {
     }
   }
 
-  @Process('send-reset-password-email')
-  async handleSendResetPassword(job: Job<{ email: string; otp: string }>) {
-    const { email, otp } = job.data;
+  // 🚀 Đã chuyển đổi sang Event Listener nền cho tác vụ Quên mật khẩu
+  @OnEvent('mail.send-reset-password', { async: true })
+  async handleSendResetPassword(payload: { email: string; otp: string }) {
+    const { email, otp } = payload;
     const from =
       process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
     const to = 'voquangluu997@gmail.com';
@@ -149,8 +150,7 @@ export class MailProcessor {
     }
   }
 
-  // --- Các hàm template riêng biệt ---
-
+  // --- Các hàm template riêng biệt giữ nguyên ---
   private getWelcomeEmailTemplate(activationUrl: string): string {
     return `
     <div style="font-family: 'Segoe UI', sans-serif; max-width: 550px; margin: 0 auto; padding: 30px; border: 2px dashed #FFCDD2; border-radius: 24px; background-color: #FFFDFD; color: #4E342E;">

@@ -7,8 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UserService } from '../users/user.service';
 import { JwtService } from '@nestjs/jwt';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { EventEmitter2 } from '@nestjs/event-emitter'; // 🚀 Import EventEmitter
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
@@ -25,7 +24,7 @@ export class AuthService {
     private prisma: PrismaService,
     private userService: UserService,
     private jwtService: JwtService,
-    @InjectQueue('mail-queue') private mailQueue: Queue,
+    private eventEmitter: EventEmitter2, // 🚀 Thay thế Queue bằng EventEmitter
   ) {}
 
   // =========================================================================
@@ -50,18 +49,15 @@ export class AuthService {
       isEmailVerified: false,
     });
 
-    // 2. Gửi mail "Fire and Forget"
+    // 2. Gửi mail "Fire and Forget" qua Event Emitter
     try {
-      await this.mailQueue.add('send-activation-email', {
+      this.eventEmitter.emit('mail.send-activation-email', {
         email: newUser.email,
         token: verificationToken,
         type: 'welcome',
       });
     } catch (mailError) {
-      console.error(
-        '❌ Cảnh báo: Không thể thêm tác vụ gửi mail vào queue:',
-        mailError,
-      );
+      console.error('❌ Cảnh báo: Không thể phát sự kiện gửi mail:', mailError);
     }
 
     // 3. Trả về thành công
@@ -328,7 +324,8 @@ export class AuthService {
     const newToken = crypto.randomBytes(32).toString('hex');
     await this.userService.updateUser(user.id, { verificationToken: newToken });
 
-    await this.mailQueue.add('send-activation-email', {
+    // 🚀 Bắn event thay vì add queue
+    this.eventEmitter.emit('mail.send-activation-email', {
       email: user.email,
       token: newToken,
     });
@@ -379,7 +376,8 @@ export class AuthService {
       resetPasswordExpires: otpExpires,
     } as any);
 
-    await this.mailQueue.add('send-reset-password-email', {
+    // 🚀 Bắn event thay vì add queue
+    this.eventEmitter.emit('mail.send-reset-password-email', {
       email: user.email,
       otp: otp,
     });
