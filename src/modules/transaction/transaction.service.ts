@@ -91,9 +91,10 @@ export class TransactionService {
   /**
    * 🗑️ Xóa một giao dịch
    */
-  async remove(id: number | string, userId: string) {
+  async remove(id: string, userId: string) {
+    // <-- Thay đổi: id là string
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id: id as any, userId },
+      where: { id: id, userId }, // <-- Bỏ 'as any'
     });
 
     if (!transaction) {
@@ -114,7 +115,7 @@ export class TransactionService {
     }
 
     return await this.prisma.transaction.delete({
-      where: { id: id as any },
+      where: { id: id }, // <-- Bỏ 'as any'
     });
   }
 
@@ -205,7 +206,7 @@ export class TransactionService {
       return {
         categories: formattedCategories,
         biggestSplurges: biggestSplurges.map((tx) => ({
-          id: tx.id.toString(),
+          id: tx.id.toString(), // Mặc dù là string rồi, toString() vẫn an toàn
           amount: tx.amount,
           date: tx.spentAt,
           imageUrl: tx.imageUrl,
@@ -223,7 +224,8 @@ export class TransactionService {
   /**
    * ✨ Cập nhật giao dịch
    */
-  async update(id: number, userId: string, updateDto: UpdateTransactionDto) {
+  async update(id: string, userId: string, updateDto: UpdateTransactionDto) {
+    // <-- Thay đổi: id là string
     const transaction = await this.prisma.transaction.findFirst({
       where: { id: id, userId: userId },
     });
@@ -341,7 +343,7 @@ export class TransactionService {
       });
 
       return splurges.map((tx) => ({
-        id: tx.id.toString(),
+        id: tx.id.toString(), // Giữ lại toString() cho đồng bộ với FE
         amount: tx.amount,
         date: tx.spentAt,
         imageUrl: tx.imageUrl,

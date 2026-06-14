@@ -11,7 +11,7 @@ datasource db {
   provider  = "postgresql"
 }
 model User {
-  id                  String         @id @default(uuid())
+  id       String     @id @default(uuid())
   email               String         @unique
   password            String?
   name                String?
@@ -41,7 +41,7 @@ model User {
 }
 
 model Transaction {
-  id       Int      @id @default(autoincrement())
+  id          String   @id @default(uuid())
   amount   Float
   note     String?
   imageUrl String?
@@ -51,6 +51,9 @@ model Transaction {
   userId   String
   // Cấu hình Cascade Delete
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])        
+  @@index([userId, spentAt]) 
 }
 
 model Notification {
@@ -67,6 +70,8 @@ model Notification {
 
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model UserBadge {

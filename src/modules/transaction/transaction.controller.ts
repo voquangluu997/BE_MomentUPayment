@@ -163,38 +163,16 @@ export class TransactionController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Cập nhật thông tin giao dịch' })
-  @ApiBody({ type: CreateTransactionDto })
   async update(
     @Param('id') id: string,
-    @Body() updateTransactionDto: CreateTransactionDto,
+    @Body() dto: CreateTransactionDto,
     @Req() req: any,
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new NotFoundException('Không tìm thấy thông tin người dùng!');
-    }
-
-    const transactionId = isNaN(Number(id)) ? id : Number(id);
-
-    return await this.transactionService.update(
-      transactionId as any,
-      userId,
-      updateTransactionDto,
-    );
+    return await this.transactionService.update(id, req.user.id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Xóa một giao dịch chi tiêu cũ' })
   async remove(@Param('id') id: string, @Req() req: any) {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new NotFoundException(
-        'Không tìm thấy thông tin định danh người dùng!',
-      );
-    }
-
-    const transactionId = isNaN(Number(id)) ? id : Number(id);
-    return await this.transactionService.remove(transactionId as any, userId);
+    return await this.transactionService.remove(id, req.user.id);
   }
 }

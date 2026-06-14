@@ -488,4 +488,31 @@ export class AuthService {
       },
     };
   }
+
+  async deleteAccount(userId: string) {
+    try {
+      // 1. Kiểm tra user có tồn tại không
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new BadRequestException('error_user_not_found');
+      }
+
+      // 2. Thực hiện xóa user
+      // Prisma với cấu hình 'onDelete: Cascade' sẽ tự động xóa
+      // Transactions, Notifications, UserBadges của user này.
+      await this.prisma.user.delete({
+        where: { id: userId },
+      });
+
+      // 3. (Tuỳ chọn) Nếu bạn dùng Firebase Auth, hãy thêm lệnh xóa user tại đây:
+      // await this.firebaseAdmin.auth().deleteUser(user.firebaseUid);
+
+      return {
+        success: true,
+        message: 'Account and all associated data have been deleted.',
+      };
+    } catch (error) {
+      throw new BadRequestException('error_unable_to_delete_account');
+    }
+  }
 }

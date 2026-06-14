@@ -7,6 +7,7 @@ import {
   BadRequestException,
   UseGuards,
   Req,
+  Delete,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -113,5 +114,13 @@ export class AuthController {
   @Post('update-profile')
   async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
     return this.authService.updateProfile(req.user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('delete-account')
+  @ApiOperation({ summary: 'Xóa vĩnh viễn tài khoản và dữ liệu người dùng' })
+  async deleteAccount(@Req() req: any) {
+    return this.authService.deleteAccount(req.user.id);
   }
 }
