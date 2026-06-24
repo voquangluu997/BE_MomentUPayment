@@ -1,0 +1,59 @@
+name: Node.js CI/CD Pipeline
+
+# Kích hoạt workflow khi push hoặc tạo Pull Request vào nhánh main
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  # --- GIAI ĐOẠN 1: BUILD ---
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Lấy code từ repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Cài đặt môi trường Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Hãy đổi lại nếu dự án của bạn dùng bản Node khác (ví dụ: 16, 18)
+          cache: 'npm'
+
+      # 3. Cài đặt packages và Build ứng dụng (Lệnh của bạn)
+      - name: Install dependencies and Build
+        run: |
+          npm install --production=false
+          npm run build
+
+      # 4. Lưu lại thư mục build (thường là dist/ hoặc build/) để dùng cho việc deploy
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: |
+            ./  # Bạn có thể trỏ đích danh vào thư mục chứa code đã build (VD: dist/)
+            !node_modules/
+
+  # --- GIAI ĐOẠN 2: DEPLOY ---
+  deploy:
+    needs: build # Chờ job 'build' thành công mới chạy deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # Chỉ deploy khi code được đưa lên nhánh main
+
+    steps:
+      # 1. Tải bản build từ job trên xuống
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: production-build
+
+      # 2. (GỢI Ý) Khởi chạy ứng dụng hoặc chuyển file lên server
+      - name: Deploy to Server
+        run: |
+          echo "Tại bước này, bạn sẽ copy file lên server (dùng SCP/Rsync)..."
+          echo "Sau đó chạy lệnh: npm run start:prod"
