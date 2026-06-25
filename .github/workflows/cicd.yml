@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # Đã cập nhật lên Node 24
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies and Build
@@ -49,3 +49,32 @@ jobs:
 
             # Khởi động lại ứng dụng
             pm2 restart momentu-backend
+
+  # --- GIAI ĐOẠN 3: TỰ ĐỘNG GỬI THÔNG BÁO VỀ SLACK ---
+  notify:
+    needs: [build, deploy]
+    if: always() # Bắt buộc chạy kể cả khi các bước trên thành công hay thất bại
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: 'GitHub Actions Bot'
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+          SLACK_TITLE: 'Moments U Payment - CI/CD Deployment Status'
+
+          # Tự động chuyển màu thanh thông báo: Xanh lá nếu mọi thứ tốt, Đỏ nếu có lỗi xảy ra
+          SLACK_COLOR: ${{ (needs.build.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')) && '#36a64f' || '#ec3040' }}
+
+          # Nội dung chi tiết bắn về Slack (Hỗ trợ Markdown của Slack)
+          SLACK_MESSAGE: |
+            *Repo:* ${{ github.repository }}
+            *Branch:* `${{ github.ref_name }}`
+            *Actor:* `${{ github.actor }}`
+            *Commit:* _"${{ github.event.head_commit.message }}"_
+
+            --------------------------------------------------
+            📊 *Môi trường hệ thống:*
+            • *Build App:* `${{ needs.build.result }}` 🛠️
+            • *Deploy VPS:* `${{ needs.deploy.result == 'skipped' && 'Skipped (Pull Request)' || needs.deploy.result }}` 🚀
