@@ -160,11 +160,12 @@ export class MailProcessor {
         <h2 style="color: #E91E63; margin-top: 10px;">Welcome to <br/>Moments U Payment! 🥰</h2>
       </div>
       <div style="font-size: 15px; line-height: 1.6; color: #5D4037;">
-        <p>Hi there! We are thrilled to have you join <b>Moments U Payment</b>!</p>
-        <p>Could you please click the button below to verify your account?</p>
+        <p>Hi there! We are so thrilled to have you join <b>Moments U Payment</b>!</p>
+        <p>More than just a payment tracker, Moments U Payment is your personal financial diary. We are here to help you gently capture every spending moment, understand your habits, and find perfect balance in your daily life. ✨</p>
+        <p>To get started on this sweet journey, could you please click the button below to verify your account?</p>
       </div>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${activationUrl}" style="background: linear-gradient(135deg, #FF4081, #EC407A); color: white; padding: 14px 32px; text-decoration: none; border-radius: 50px;">
+        <a href="${activationUrl}" style="background: linear-gradient(135deg, #FF4081, #EC407A); color: white; padding: 14px 32px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">
           🌸 Activate My Account Now!
         </a>
       </div>
