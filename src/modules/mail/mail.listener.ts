@@ -151,27 +151,30 @@ export class MailProcessor {
     }
   }
 
-  // --- Các hàm template riêng biệt giữ nguyên ---
   private getWelcomeEmailTemplate(activationUrl: string): string {
     return `
-    <div style="font-family: 'Segoe UI', sans-serif; max-width: 550px; margin: 0 auto; padding: 30px; border: 2px dashed #FFCDD2; border-radius: 24px; background-color: #FFFDFD; color: #4E342E;">
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 550px; margin: 0 auto; padding: 30px; border: 1px solid #FFCDD2; border-radius: 16px; background-color: #FFFDFD; color: #4E342E;">
       <div style="text-align: center; margin-bottom: 25px;">
-        <span style="font-size: 50px;">🎉</span>
-        <h2 style="color: #E91E63; margin-top: 10px;">Welcome to <br/>Moments U Payment! 🥰</h2>
+        <h2 style="color: #E91E63; margin-top: 10px;">Welcome to Moments U Payment! 🎉</h2>
       </div>
       <div style="font-size: 15px; line-height: 1.6; color: #5D4037;">
-        <p>Hi there! We are so thrilled to have you join <b>Moments U Payment</b>!</p>
-        <p>More than just a payment tracker, Moments U Payment is your personal financial diary. We are here to help you gently capture every spending moment, understand your habits, and find perfect balance in your daily life. ✨</p>
-        <p>To get started on this sweet journey, could you please click the button below to verify your account?</p>
+        <p>Hi there,</p>
+        <p>We are so thrilled to have you join <b>Moments U Payment</b>!</p>
+        <p>More than just a payment tracker, Moments U Payment is your personal financial diary. We are here to help you gently capture every spending moment, understand your habits, and find perfect balance in your daily life.</p>
+        <p>To get started on this journey, please click the button below to verify your account:</p>
       </div>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${activationUrl}" style="background: linear-gradient(135deg, #FF4081, #EC407A); color: white; padding: 14px 32px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">
-          🌸 Activate My Account Now!
+      <div style="text-align: center; margin: 35px 0;">
+        <a href="${activationUrl}" style="background-color: #E91E63; color: white; padding: 14px 32px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">
+          Activate My Account
         </a>
+      </div>
+      <hr style="border: none; border-top: 1px solid #EEEEEE; margin: 30px 0;" />
+      <div style="font-size: 12px; color: #9E9E9E; text-align: center; line-height: 1.5;">
+        <p>You are receiving this email because you registered an account at Moments U Payment.</p>
+        <p>If you did not request this, please safely ignore this email.</p>
       </div>
     </div>`;
   }
-
   private getReminderEmailTemplate(activationUrl: string): string {
     return `
     <div style="font-family: 'Segoe UI', sans-serif; max-width: 550px; margin: 0 auto; padding: 30px; border: 2px dashed #FFB74D; border-radius: 24px; background-color: #FFFDFD; color: #4E342E;">
