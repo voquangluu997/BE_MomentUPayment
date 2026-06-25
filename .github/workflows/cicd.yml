@@ -1,6 +1,5 @@
 name: Node.js CI/CD Pipeline
 
-# Kích hoạt workflow khi push hoặc tạo Pull Request vào nhánh main
 on:
   push:
     branches: ['main']
@@ -8,52 +7,45 @@ on:
     branches: ['main']
 
 jobs:
-  # --- GIAI ĐOẠN 1: BUILD ---
+  # --- GIAI ĐOẠN 1: KIỂM TRA LỖI BUILD TRƯỚC KHI DEPLOY ---
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. Lấy code từ repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Cài đặt môi trường Node.js
-      - name: Set up Node.js
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Hãy đổi lại nếu dự án của bạn dùng bản Node khác (ví dụ: 16, 18)
+          node-version: '24' # Đã cập nhật lên Node 24
           cache: 'npm'
 
-      # 3. Cài đặt packages và Build ứng dụng (Lệnh của bạn)
       - name: Install dependencies and Build
         run: |
           npm install --production=false
           npm run build
 
-      # 4. Lưu lại thư mục build (thường là dist/ hoặc build/) để dùng cho việc deploy
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-build
-          path: |
-            ./  # Bạn có thể trỏ đích danh vào thư mục chứa code đã build (VD: dist/)
-            !node_modules/
-
-  # --- GIAI ĐOẠN 2: DEPLOY ---
+  # --- GIAI ĐOẠN 2: TỰ ĐỘNG KÉO CODE VÀ DEPLOY LÊN VPS ---
   deploy:
-    needs: build # Chờ job 'build' thành công mới chạy deploy
+    needs: build # Chỉ deploy khi code build không có lỗi
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' # Chỉ deploy khi code được đưa lên nhánh main
+    if: github.ref == 'refs/heads/main'
 
     steps:
-      # 1. Tải bản build từ job trên xuống
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          name: production-build
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /var/www/backend
+            # Kéo code mới nhất từ nhánh main
+            git pull origin main
 
-      # 2. (GỢI Ý) Khởi chạy ứng dụng hoặc chuyển file lên server
-      - name: Deploy to Server
-        run: |
-          echo "Tại bước này, bạn sẽ copy file lên server (dùng SCP/Rsync)..."
-          echo "Sau đó chạy lệnh: npm run start:prod"
+            # Cài đặt các thư viện mới (nếu có) và Build lại
+            npm install --production=false
+            npm run build
+
+            # Khởi động lại ứng dụng
+            pm2 restart momentu-backend
