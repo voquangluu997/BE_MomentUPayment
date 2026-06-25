@@ -39,7 +39,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            cd /var/www/backend
+            cd /root/backend
             # Kéo code mới nhất từ nhánh main
             git pull origin main
 
