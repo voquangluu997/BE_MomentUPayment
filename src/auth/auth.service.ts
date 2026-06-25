@@ -184,6 +184,41 @@ export class AuthService {
       });
     }
 
+    // ✨ BỔ SUNG: Xử lý thông báo onboarding lần đầu đăng nhập cho Google Auth
+    if (user['isFirstLogin'] === true) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'onboarding_first_transaction',
+            titleKey: 'notiFirstTxnTitle',
+            bodyKey: 'notiFirstTxnBody',
+            arguments: [],
+          },
+        });
+
+        await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'onboarding_set_budget',
+            titleKey: 'notiSetBudgetTitle',
+            bodyKey: 'notiSetBudgetBody',
+            arguments: [],
+          },
+        });
+
+        // Cập nhật trạng thái đã đăng nhập lần đầu
+        user = await this.userService.updateUser(user.id, {
+          isFirstLogin: false,
+        } as any);
+      } catch (error) {
+        console.error(
+          'Lỗi khi tạo thông báo onboarding lần đầu đăng nhập (Google):',
+          error,
+        );
+      }
+    }
+
     const backendToken = this.jwtService.sign({ userId: user.id });
 
     return {
@@ -247,6 +282,41 @@ export class AuthService {
         appleId: appleId,
         isEmailVerified: true,
       } as any);
+    }
+
+    // ✨ BỔ SUNG: Xử lý thông báo onboarding lần đầu đăng nhập cho Apple Auth
+    if (user['isFirstLogin'] === true) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'onboarding_first_transaction',
+            titleKey: 'notiFirstTxnTitle',
+            bodyKey: 'notiFirstTxnBody',
+            arguments: [],
+          },
+        });
+
+        await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'onboarding_set_budget',
+            titleKey: 'notiSetBudgetTitle',
+            bodyKey: 'notiSetBudgetBody',
+            arguments: [],
+          },
+        });
+
+        // Cập nhật trạng thái đã đăng nhập lần đầu
+        user = await this.userService.updateUser(user.id, {
+          isFirstLogin: false,
+        } as any);
+      } catch (error) {
+        console.error(
+          'Lỗi khi tạo thông báo onboarding lần đầu đăng nhập (Apple):',
+          error,
+        );
+      }
     }
 
     const backendToken = this.jwtService.sign({ userId: user.id });
