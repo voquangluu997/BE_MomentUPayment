@@ -7,7 +7,6 @@ declare const fetch: any;
 
 @Injectable()
 export class MailProcessor {
-  // Hoặc đổi tên thành MailListener tùy ý bạn
   private transporter;
 
   constructor() {
@@ -40,7 +39,8 @@ export class MailProcessor {
     if (!apiKey) throw new Error('RESEND_API_KEY not configured');
 
     const payload = {
-      from: from || process.env.MAIL_FROM || 'onboarding@resend.dev',
+      // 🛠️ ĐÃ CẬP NHẬT: Thay đổi fallback mặc định sang domain mới của bạn
+      from: from || process.env.MAIL_FROM || 'noreply@momentsupayment.top',
       to: [to],
       subject,
       html: htmlContent,
@@ -64,8 +64,7 @@ export class MailProcessor {
     const { email, token, type } = payload;
 
     // 1. Chuẩn bị URL
-    const baseUrl =
-      process.env.APP_BASE_URL || 'https://be-momentupayment.onrender.com';
+    const baseUrl = process.env.APP_BASE_URL || 'https://momentsupayment.top';
     const activationUrl = `${baseUrl}/auth/activate?token=${token}`;
 
     // 2. Xác định nội dung dựa trên loại email
@@ -78,10 +77,10 @@ export class MailProcessor {
       ? this.getReminderEmailTemplate(activationUrl)
       : this.getWelcomeEmailTemplate(activationUrl);
 
-    // keep test recipient hard-coded per request
-    const to = 'voquangluu997@gmail.com';
+    const to = email;
     const from =
-      process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
+      process.env.MAIL_FROM ||
+      '"Moments U Payment" <noreply@momentsupayment.top>';
 
     try {
       if (process.env.RESEND_API_KEY) {
@@ -111,8 +110,10 @@ export class MailProcessor {
   async handleSendResetPassword(payload: { email: string; otp: string }) {
     const { email, otp } = payload;
     const from =
-      process.env.MAIL_FROM || '"Moments U Payment" <onboarding@resend.dev>';
-    const to = 'voquangluu997@gmail.com';
+      process.env.MAIL_FROM ||
+      '"Moments U Payment" <noreply@momentsupayment.top>';
+
+    const to = email;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px;">
