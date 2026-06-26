@@ -40,7 +40,7 @@ export class UploadService {
         .toBuffer();
 
       return new Promise((resolve, reject) => {
-        const uploadStream = this.cloudinary.uploader.upload_stream(
+        const uploadStream = cloudinary.uploader.upload_stream(
           {
             folder: `moment_u_payment/users/${userId}`,
             resource_type: 'image',
