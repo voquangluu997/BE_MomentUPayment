@@ -10,7 +10,7 @@ import {
   UploadApiErrorResponse,
 } from 'cloudinary';
 import * as streamifier from 'streamifier';
-import * as sharp from 'sharp'; // 👈 Thêm thư viện sharp
+import sharp from 'sharp';
 
 @Injectable()
 export class UploadService {
