@@ -10,8 +10,7 @@ import {
   UploadApiErrorResponse,
 } from 'cloudinary';
 import * as streamifier from 'streamifier';
-import sharp from 'sharp';
-
+import sharp = require('sharp');
 @Injectable()
 export class UploadService {
   constructor(@Inject('CLOUDINARY') private readonly cloudinary) {}
