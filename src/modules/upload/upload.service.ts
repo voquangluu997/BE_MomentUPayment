@@ -1,84 +1,98 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  Inject,
+} from '@nestjs/common';
 import {
   v2 as cloudinary,
   UploadApiResponse,
   UploadApiErrorResponse,
 } from 'cloudinary';
 import * as streamifier from 'streamifier';
+import * as sharp from 'sharp'; // 👈 Thêm thư viện sharp
 
 @Injectable()
 export class UploadService {
-  /**
-   * 🚀 Upload ảnh ngầm và lưu vào folder riêng của từng User
-   */
+  constructor(@Inject('CLOUDINARY') private readonly cloudinary) {}
+
   async uploadImage(
     file: Express.Multer.File,
     userId: string,
   ): Promise<string> {
-    if (!file) {
-      throw new BadRequestException(
-        'Không tìm thấy file ảnh nào được gửi lên!',
-      );
+    if (!file) throw new BadRequestException('Không tìm thấy file ảnh!');
+
+    // 1. Kiểm tra định dạng file (chỉ cho phép hình ảnh)
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Chỉ chấp nhận tệp tin hình ảnh!');
     }
 
-    if (!userId) {
-      throw new BadRequestException('Thiếu thông tin userId để tạo thư mục!');
-    }
+    if (!userId) throw new BadRequestException('Thiếu userId!');
 
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: `moment_u_payment/users/${userId}`, // Tạo folder riêng cho user
-          resource_type: 'image',
-        },
-        (error: UploadApiErrorResponse, result: UploadApiResponse) => {
-          if (error) {
-            console.error('❌ Lỗi chi tiết khi đẩy ảnh lên Cloudinary:', error);
-            return reject(
-              new BadRequestException(
-                'Đẩy ảnh lên đám mây Cloudinary thất bại!',
-              ),
-            );
-          }
-          resolve(result.secure_url);
-        },
+    try {
+      // 🚀 NÉN ẢNH TRƯỚC KHI UPLOAD VỚI SHARP
+      const compressedBuffer = await sharp(file.buffer)
+        .resize({
+          width: 800, // Thu nhỏ chiều rộng tối đa về 800px (phù hợp cho avatar/ảnh cover)
+          withoutEnlargement: true, // Tránh việc ảnh nhỏ bị phóng to làm mờ
+        })
+        .jpeg({ quality: 80 }) // Chuyển đổi sang chuẩn jpeg và nén chất lượng còn 80%
+        .toBuffer();
+
+      return new Promise((resolve, reject) => {
+        const uploadStream = this.cloudinary.uploader.upload_stream(
+          {
+            folder: `moment_u_payment/users/${userId}`,
+            resource_type: 'image',
+            // Cloudinary sẽ tiếp tục tự động tối ưu hóa định dạng (vd: WebP) khi phân phối
+            transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+          },
+          (error: UploadApiErrorResponse, result: UploadApiResponse) => {
+            if (error) {
+              console.error('❌ Cloudinary Error:', error);
+              return reject(
+                new InternalServerErrorException('Lỗi tải ảnh lên Cloudinary'),
+              );
+            }
+            resolve(result.secure_url);
+          },
+        );
+
+        // 👈 Sử dụng compressedBuffer thay vì file.buffer gốc
+        streamifier.createReadStream(compressedBuffer).pipe(uploadStream);
+      });
+    } catch (error) {
+      console.error('❌ Lỗi nén ảnh:', error);
+      throw new InternalServerErrorException(
+        'Lỗi xử lý và nén ảnh trước khi tải lên',
       );
-
-      streamifier.createReadStream(file.buffer).pipe(uploadStream);
-    });
+    }
   }
 
-  /**
-   * 🔥 Hàm trích xuất public_id từ URL Cloudinary và tiến hành xóa file
-   */
   async deleteImage(imageUrl: string): Promise<any> {
     if (!imageUrl) return;
 
     try {
-      // URL ví dụ: https://res.cloudinary.com/.../moment_u_payment/users/123/sample.jpg
-      const folderName = 'moment_u_payment';
-      const startIndex = imageUrl.indexOf(folderName);
+      const regex = /moment_u_payment\/users\/[^\/]+\/[^.]+/;
+      const match = imageUrl.match(regex);
 
-      if (startIndex === -1) {
-        throw new BadRequestException(
-          'URL ảnh không thuộc hệ thống quản lý của ứng dụng!',
-        );
+      if (!match) {
+        console.warn('⚠️ URL ảnh không hợp lệ để xóa:', imageUrl);
+        return;
       }
 
-      const endIndex = imageUrl.lastIndexOf('.');
-      // Sẽ lấy được toàn bộ chuỗi: "moment_u_payment/users/123/sample"
-      const publicId = imageUrl.substring(startIndex, endIndex);
-
+      const publicId = match[0];
       const result = await cloudinary.uploader.destroy(publicId);
 
-      if (result.result !== 'ok' && result.result !== 'not_found') {
-        throw new Error(`Cloudinary trả về trạng thái lỗi: ${result.result}`);
+      if (result.result === 'not_found') {
+        console.warn('⚠️ Ảnh không tồn tại trên Cloudinary:', publicId);
       }
 
       return result;
     } catch (error) {
-      throw new BadRequestException(
-        `Không thể xóa ảnh trên Cloudinary: ${error}`,
+      console.error('❌ Delete Error:', error);
+      throw new InternalServerErrorException(
+        'Không thể xóa ảnh trên Cloudinary',
       );
     }
   }
