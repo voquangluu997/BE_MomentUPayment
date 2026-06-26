@@ -4,14 +4,9 @@ import {
   InternalServerErrorException,
   Inject,
 } from '@nestjs/common';
-import {
-  v2 as cloudinary,
-  UploadApiResponse,
-  UploadApiErrorResponse,
-} from 'cloudinary';
+import { UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
 import * as streamifier from 'streamifier';
 
-const sharp = require('sharp');
 @Injectable()
 export class UploadService {
   constructor(@Inject('CLOUDINARY') private readonly cloudinary) {}
@@ -30,21 +25,12 @@ export class UploadService {
     if (!userId) throw new BadRequestException('Thiếu userId!');
 
     try {
-      // 🚀 NÉN ẢNH TRƯỚC KHI UPLOAD VỚI SHARP
-      const compressedBuffer = await sharp(file.buffer)
-        .resize({
-          width: 800, // Thu nhỏ chiều rộng tối đa về 800px (phù hợp cho avatar/ảnh cover)
-          withoutEnlargement: true, // Tránh việc ảnh nhỏ bị phóng to làm mờ
-        })
-        .jpeg({ quality: 80 }) // Chuyển đổi sang chuẩn jpeg và nén chất lượng còn 80%
-        .toBuffer();
-
       return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
+        const uploadStream = this.cloudinary.uploader.upload_stream(
           {
             folder: `moment_u_payment/users/${userId}`,
             resource_type: 'image',
-            // Cloudinary sẽ tiếp tục tự động tối ưu hóa định dạng (vd: WebP) khi phân phối
+            // Cloudinary sẽ tự động tối ưu hóa định dạng (vd: WebP/AVIF) khi phân phối đến thiết bị
             transformation: [{ quality: 'auto', fetch_format: 'auto' }],
           },
           (error: UploadApiErrorResponse, result: UploadApiResponse) => {
@@ -58,13 +44,13 @@ export class UploadService {
           },
         );
 
-        // 👈 Sử dụng compressedBuffer thay vì file.buffer gốc
-        streamifier.createReadStream(compressedBuffer).pipe(uploadStream);
+        // 👈 Sử dụng trực tiếp file.buffer do Client gửi lên
+        streamifier.createReadStream(file.buffer).pipe(uploadStream);
       });
     } catch (error) {
-      console.error('❌ Lỗi nén ảnh:', error);
+      console.error('❌ Lỗi xử lý luồng ảnh:', error);
       throw new InternalServerErrorException(
-        'Lỗi xử lý và nén ảnh trước khi tải lên',
+        'Lỗi xử lý khi tải ảnh lên server',
       );
     }
   }
@@ -82,7 +68,7 @@ export class UploadService {
       }
 
       const publicId = match[0];
-      const result = await cloudinary.uploader.destroy(publicId);
+      const result = await this.cloudinary.uploader.destroy(publicId);
 
       if (result.result === 'not_found') {
         console.warn('⚠️ Ảnh không tồn tại trên Cloudinary:', publicId);
