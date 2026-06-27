@@ -242,10 +242,8 @@ export class AuthService {
     let decodedAppleToken: any;
 
     try {
-      // Xác thực token với máy chủ Apple
       decodedAppleToken = await appleSignin.verifyIdToken(dto.identityToken, {
         audience: process.env.APP_BUNDLE_ID,
-        ignoreExpiration: true, // Xoá dòng này đi khi đưa lên Production
       });
     } catch (error) {
       throw new BadRequestException('error_apple_token_invalid');
@@ -273,18 +271,17 @@ export class AuthService {
       user = await this.userService.createUser({
         email: email,
         name: fullName,
-        appleId: appleId, // Lưu Apple ID
-        isEmailVerified: true, // Email của Apple đã được xác thực
+        appleId: appleId,
+        isEmailVerified: true,
       });
     } else {
-      // Cập nhật appleId cho user hiện tại nếu họ dùng chung email
       user = await this.userService.updateUser(user.id, {
         appleId: appleId,
         isEmailVerified: true,
       } as any);
     }
 
-    // ✨ BỔ SUNG: Xử lý thông báo onboarding lần đầu đăng nhập cho Apple Auth
+    // ✨ Xử lý thông báo onboarding lần đầu đăng nhập cho Apple Auth
     if (user['isFirstLogin'] === true) {
       try {
         await this.prisma.notification.create({
@@ -307,7 +304,6 @@ export class AuthService {
           },
         });
 
-        // Cập nhật trạng thái đã đăng nhập lần đầu
         user = await this.userService.updateUser(user.id, {
           isFirstLogin: false,
         } as any);
