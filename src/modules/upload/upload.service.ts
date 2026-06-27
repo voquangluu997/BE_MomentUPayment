@@ -4,7 +4,11 @@ import {
   InternalServerErrorException,
   Inject,
 } from '@nestjs/common';
-import { UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
+import {
+  UploadApiResponse,
+  UploadApiErrorResponse,
+  v2 as cloudinary,
+} from 'cloudinary';
 import * as streamifier from 'streamifier';
 
 @Injectable()
@@ -26,7 +30,7 @@ export class UploadService {
 
     try {
       return new Promise((resolve, reject) => {
-        const uploadStream = this.cloudinary.uploader.upload_stream(
+        const uploadStream = cloudinary.uploader.upload_stream(
           {
             folder: `moment_u_payment/users/${userId}`,
             resource_type: 'image',
@@ -68,7 +72,7 @@ export class UploadService {
       }
 
       const publicId = match[0];
-      const result = await this.cloudinary.uploader.destroy(publicId);
+      const result = await cloudinary.uploader.destroy(publicId);
 
       if (result.result === 'not_found') {
         console.warn('⚠️ Ảnh không tồn tại trên Cloudinary:', publicId);
